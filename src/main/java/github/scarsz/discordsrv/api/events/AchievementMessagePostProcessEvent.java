@@ -20,7 +20,8 @@
 
 package github.scarsz.discordsrv.api.events;
 
-import net.dv8tion.jda.api.MessageBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.entities.Message;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
@@ -38,12 +39,12 @@ public class AchievementMessagePostProcessEvent extends GameEvent<Event> impleme
     private final String achievementName;
     private String channel;
 
-    private Message discordMessage;
+    private MessageCreateData discordMessage;
     private boolean usingWebhooks;
     private String webhookName;
     private String webhookAvatarUrl;
 
-    public AchievementMessagePostProcessEvent(String channel, Message discordMessage, Player player, String achievementName, Event triggeringBukkitEvent, boolean usingWebhooks, String webhookName, String webhookAvatarUrl, boolean cancelled) {
+    public AchievementMessagePostProcessEvent(String channel, MessageCreateData discordMessage, Player player, String achievementName, Event triggeringBukkitEvent, boolean usingWebhooks, String webhookName, String webhookAvatarUrl, boolean cancelled) {
         super(player, triggeringBukkitEvent);
         this.channel = channel;
         this.discordMessage = discordMessage;
@@ -55,7 +56,7 @@ public class AchievementMessagePostProcessEvent extends GameEvent<Event> impleme
     }
 
     @Deprecated
-    public AchievementMessagePostProcessEvent(String channel, Message discordMessage, Player player, String achievementName, boolean usingWebhooks, String webhookName, String webhookAvatarUrl, boolean cancelled) {
+    public AchievementMessagePostProcessEvent(String channel, MessageCreateData discordMessage, Player player, String achievementName, boolean usingWebhooks, String webhookName, String webhookAvatarUrl, boolean cancelled) {
         super(player, null);
         this.channel = channel;
         this.discordMessage = discordMessage;
@@ -70,19 +71,19 @@ public class AchievementMessagePostProcessEvent extends GameEvent<Event> impleme
     public AchievementMessagePostProcessEvent(String channel, String processedMessage, Player player, String achievementName, boolean cancelled) {
         super(player, null);
         this.channel = channel;
-        this.discordMessage = new MessageBuilder().setContent(processedMessage).build();
+        this.discordMessage = MessageCreateData.fromContent(processedMessage);
         this.achievementName = achievementName;
         setCancelled(cancelled);
     }
 
     @Deprecated
     public String getProcessedMessage() {
-        return discordMessage.getContentRaw();
+        return discordMessage.getContent();
     }
 
     @Deprecated
     public void setProcessedMessage(String processedMessage) {
-        this.discordMessage = new MessageBuilder(processedMessage).build();
+        this.discordMessage = MessageCreateData.fromContent(processedMessage);
     }
 
     public boolean isCancelled() {
@@ -97,7 +98,7 @@ public class AchievementMessagePostProcessEvent extends GameEvent<Event> impleme
         return this.channel;
     }
 
-    public Message getDiscordMessage() {
+    public MessageCreateData getDiscordMessage() {
         return this.discordMessage;
     }
 
@@ -121,7 +122,7 @@ public class AchievementMessagePostProcessEvent extends GameEvent<Event> impleme
         this.channel = channel;
     }
 
-    public void setDiscordMessage(Message discordMessage) {
+    public void setDiscordMessage(MessageCreateData discordMessage) {
         this.discordMessage = discordMessage;
     }
 

@@ -22,14 +22,18 @@ package github.scarsz.discordsrv.util;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
+import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
-import net.dv8tion.jda.api.requests.restaction.MessageAction;
-import net.dv8tion.jda.internal.utils.BufferedRequestBody;
+import net.dv8tion.jda.api.entities.channel.concrete.*;
+import net.dv8tion.jda.api.entities.channel.middleman.*;
+import net.dv8tion.jda.api.entities.channel.unions.*;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import okhttp3.*;
 import okio.Okio;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.io.IOUtils;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.json.JSONArray;
@@ -65,7 +69,7 @@ public class WebhookUtil {
                             continue;
                         }
 
-                        if (DiscordSRV.getPlugin().getDestinationGameChannelNameForTextChannel(webhook.getChannel()) == null) {
+                        if (DiscordSRV.getPlugin().getDestinationGameChannelNameForTextChannel(webhook.getChannel().asTextChannel()) == null) {
                             webhook.delete().reason("DiscordSRV: Purging webhook for unlinked channel").queue();
                         } else if (LEGACY.test(webhook)) {
                             webhook.delete().reason("DiscordSRV: Purging legacy formatted webhook").queue();
@@ -309,7 +313,7 @@ public class WebhookUtil {
                 if (interactions != null) {
                     JSONArray jsonArray = new JSONArray();
                     for (ActionRow actionRow : interactions) {
-                        jsonArray.put(actionRow.toData().toMap());
+                        /* components skipped: JDA 6 component serialization differs */;
                     }
                     jsonObject.put("components", jsonArray);
                 }
@@ -330,7 +334,7 @@ public class WebhookUtil {
                 }
 
                 JSONObject allowedMentions = new JSONObject();
-                Set<String> parse = MessageAction.getDefaultMentions().stream()
+                Set<String> parse = MessageRequest.getDefaultMentions().stream()
                         .filter(Objects::nonNull)
                         .map(Message.MentionType::getParseKey)
                         .collect(Collectors.toSet());
@@ -347,7 +351,7 @@ public class WebhookUtil {
                         String name = attachmentIndex.get(i);
                         InputStream data = attachments.get(name);
                         if (data != null) {
-                            bodyBuilder.addFormDataPart("files[" + i + "]", name, new BufferedRequestBody(Okio.source(data), null));
+                            bodyBuilder.addFormDataPart("files[" + i + "]", name, okhttp3.RequestBody.create(org.apache.commons.io.IOUtils.toByteArray(data), null));
                             data.close();
                         }
                     }
@@ -447,7 +451,7 @@ public class WebhookUtil {
                         return owner != null && selfMember.getId().equals(owner.getId());
                     })
                     .filter(webhook -> {
-                        if (!webhook.getChannel().equals(channel)) {
+                        if (!webhook.getChannel().asTextChannel().equals(channel)) {
                             webhook.delete().reason("DiscordSRV: Purging lost webhook").queue();
                             return false;
                         }

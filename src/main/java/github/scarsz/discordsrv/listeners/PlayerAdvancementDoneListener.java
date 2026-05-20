@@ -29,7 +29,8 @@ import github.scarsz.discordsrv.util.*;
 import lombok.SneakyThrows;
 import java.lang.reflect.Field;
 import net.dv8tion.jda.api.entities.Message;
-import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.*;
@@ -40,7 +41,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -142,7 +142,7 @@ public class PlayerAdvancementDoneListener implements Listener {
             content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
             return content;
         };
-        Message discordMessage = DiscordSRV.translateMessage(messageFormat, translator);
+        MessageCreateData discordMessage = DiscordSRV.translateMessage(messageFormat, translator);
         if (discordMessage == null) return;
 
         String webhookName = translator.apply(messageFormat.getWebhookName(), false);
@@ -160,7 +160,7 @@ public class PlayerAdvancementDoneListener implements Listener {
         TextChannel textChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName(channelName);
         if (postEvent.isUsingWebhooks()) {
             WebhookUtil.deliverMessage(textChannel, postEvent.getWebhookName(), postEvent.getWebhookAvatarUrl(),
-                    discordMessage.getContentRaw(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
+                    discordMessage.getContent(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
         } else {
             DiscordUtil.queueMessage(textChannel, discordMessage, true);
         }

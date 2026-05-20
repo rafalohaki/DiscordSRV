@@ -4,7 +4,7 @@ description: The most powerful, configurable, open-source Discord bridge plugin 
 author: Scarsz
 authors: [Androkai, Vankka]
 website: https://github.com/DiscordSRV/DiscordSRV
-api-version: 1.13
+api-version: '1.21'
 folia-supported: true
 
 main: github.scarsz.discordsrv.DiscordSRV

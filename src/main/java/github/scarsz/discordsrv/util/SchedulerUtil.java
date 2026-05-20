@@ -120,6 +120,18 @@ public class SchedulerUtil {
         Bukkit.getScheduler().runTaskLater(plugin, runnable, delayedTicks);
     }
 
+    public static void runTaskTimer(Plugin plugin, Runnable runnable, long initialDelayTicks, long periodTicks) {
+        if (isFolia()) {
+            // Folia's GlobalRegionScheduler.runAtFixedRate throws IllegalArgumentException for delay/period < 1.
+            Object globalRegionScheduler = getGlobalRegionScheduler();
+            callMethod(globalRegionScheduler, "runAtFixedRate", new Class[]{Plugin.class, Consumer.class, long.class, long.class},
+                       plugin, (Consumer<?>) (task) -> runnable.run(), Math.max(1L, initialDelayTicks), Math.max(1L, periodTicks));
+            return;
+        }
+        int taskNumber = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, runnable, initialDelayTicks, periodTicks);
+        if (taskNumber == -1) throw new IllegalStateException("Bukkit scheduleSyncRepeatingTask returned -1 (scheduling rejected)");
+    }
+
     public static void runTaskLaterAsynchronously(Plugin plugin, Runnable runnable, long delayedTicks) {
         if (isFolia()) {
             Object asyncScheduler = callMethod(Bukkit.class, "getAsyncScheduler");

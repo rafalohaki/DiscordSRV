@@ -62,14 +62,12 @@ public class ConfigUtil {
         try {
             Provider configProvider = DiscordSRV.config().getProvider("config");
             Provider messageProvider = DiscordSRV.config().getProvider("messages");
-            Provider voiceProvider = DiscordSRV.config().getProvider("voice");
             Provider linkingProvider = DiscordSRV.config().getProvider("linking");
             Provider synchronizationProvider = DiscordSRV.config().getProvider("synchronization");
             Provider alertsProvider = DiscordSRV.config().getProvider("alerts");
 
             migrate("config.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getConfigFile(), configProvider);
             migrate("messages.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getMessagesFile(), messageProvider);
-            migrate("voice.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getVoiceFile(), voiceProvider);
             migrate("linking.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getLinkingFile(), linkingProvider);
             migrate("synchronization.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getSynchronizationFile(), synchronizationProvider);
             migrate("alerts.yml-build." + oldVersionName + ".old", DiscordSRV.getPlugin().getAlertsFile(), alertsProvider);

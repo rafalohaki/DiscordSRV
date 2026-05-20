@@ -20,12 +20,12 @@
 
 package github.scarsz.discordsrv.api;
 
-import github.scarsz.discordsrv.api.events.DiscordGuildMessageReceivedEvent;
+import github.scarsz.discordsrv.api.events.DiscordPrivateMessageReceivedEvent;
 
 public class DummyListener {
 
     @Subscribe
-    public void on(DiscordGuildMessageReceivedEvent event) {
+    public void on(DiscordPrivateMessageReceivedEvent event) {
 
     }
 

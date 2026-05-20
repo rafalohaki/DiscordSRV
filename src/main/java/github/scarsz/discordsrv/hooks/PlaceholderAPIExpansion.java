@@ -25,10 +25,14 @@ import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
 import github.scarsz.discordsrv.objects.managers.link.JdbcAccountLinkManager;
 import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
 import me.clip.placeholderapi.PlaceholderAPIPlugin;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.concrete.*;
+import net.dv8tion.jda.api.entities.channel.middleman.*;
+import net.dv8tion.jda.api.entities.channel.unions.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.apache.commons.lang3.StringUtils;
@@ -65,11 +69,13 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
         Set<String> onlineMemberIds = onlineMembers.stream().map(Member::getId).collect(Collectors.toSet());
         AccountLinkManager accountLinkManager = DiscordSRV.getPlugin().getAccountLinkManager();
         Supplier<Set<String>> linkedAccounts = () -> {
-            if (accountLinkManager instanceof JdbcAccountLinkManager && Bukkit.isPrimaryThread()) {
+            // On Folia every tick thread is unsafe for blocking I/O, equivalent to Bukkit's main thread.
+            boolean unsafeForBlocking = SchedulerUtil.isFolia() || Bukkit.isPrimaryThread();
+            if (accountLinkManager instanceof JdbcAccountLinkManager && unsafeForBlocking) {
                 // not permitted
                 long currentTime = System.currentTimeMillis();
                 if (lastIssue + TimeUnit.SECONDS.toMillis(10) < currentTime) {
-                    DiscordSRV.warning("The %discordsrv_linked_online% placeholder was requested via PlaceholderAPI on the main thread while JDBC is enabled, this is unsupported");
+                    DiscordSRV.warning("The %discordsrv_linked_online% placeholder was requested via PlaceholderAPI on a tick thread while JDBC is enabled, this is unsupported");
                     lastIssue = currentTime;
                 }
                 return Collections.emptySet();
@@ -141,7 +147,8 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
 
         if (player == null) return "";
 
-        String userId = Bukkit.isPrimaryThread()
+        // On Folia every tick thread is unsafe for blocking I/O — fall back to the cache there too.
+        String userId = (SchedulerUtil.isFolia() || Bukkit.isPrimaryThread())
                         ? accountLinkManager.getDiscordIdFromCache(player.getUniqueId())
                         : accountLinkManager.getDiscordId(player.getUniqueId());
         switch (identifier) {

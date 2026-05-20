@@ -64,6 +64,10 @@ public abstract class AbstractAccountLinkManager implements AccountLinkManager {
 
     private final Set<String> nagged = new HashSet<>();
     protected void ensureOffThread(boolean single) {
+        // Folia has no main thread; isPrimaryThread() would always be false here and
+        // produce zero false positives but also zero true positives. Callers are expected
+        // to dispatch via SchedulerUtil — skip the nag entirely on Folia.
+        if (SchedulerUtil.isFolia()) return;
         if (!Bukkit.isPrimaryThread()) return;
 
         StackTraceElement[] elements = Thread.currentThread().getStackTrace();

@@ -33,9 +33,11 @@ import github.scarsz.discordsrv.hooks.SkriptHook;
 import github.scarsz.discordsrv.hooks.VaultHook;
 import github.scarsz.discordsrv.hooks.chat.TownyChatHook;
 import github.scarsz.discordsrv.listeners.DiscordDisconnectListener;
-import github.scarsz.discordsrv.modules.voice.VoiceModule;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.concrete.*;
+import net.dv8tion.jda.api.entities.channel.middleman.*;
+import net.dv8tion.jda.api.entities.channel.unions.*;
 import net.dv8tion.jda.api.requests.CloseCode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -124,7 +126,6 @@ public class DebugUtil {
             files.add(fileMap("config.yml", "raw plugins/DiscordSRV/config.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getConfigFile(), StandardCharsets.UTF_8)));
             files.add(fileMap("config-active.yml", "active plugins/DiscordSRV/config.yml", getActiveConfig()));
             files.add(fileMap("messages.yml", "raw plugins/DiscordSRV/messages.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getMessagesFile(), StandardCharsets.UTF_8)));
-            files.add(fileMap("voice.yml", "raw plugins/DiscordSRV/voice.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getVoiceFile(), StandardCharsets.UTF_8)));
             files.add(fileMap("linking.yml", "raw plugins/DiscordSRV/linking.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getLinkingFile(), StandardCharsets.UTF_8)));
             files.add(fileMap("synchronization.yml", "raw plugins/DiscordSRV/synchronization.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getSynchronizationFile(), StandardCharsets.UTF_8)));
             files.add(fileMap("alerts.yml", "raw plugins/DiscordSRV/alerts.yml", FileUtils.readFileToString(DiscordSRV.getPlugin().getAlertsFile(), StandardCharsets.UTF_8)));
@@ -455,33 +456,13 @@ public class DebugUtil {
             output.add("main guild -> " + mainGuild + " [" + String.join(", ", guildPermissions) + "]");
         }
 
-        VoiceChannel lobbyChannel = VoiceModule.getLobbyChannel();
-        if (lobbyChannel == null) {
-            output.add("voice lobby -> null");
-        } else {
-            List<String> channelPermissions = new ArrayList<>();
-            if (DiscordUtil.checkPermission(lobbyChannel, Permission.VOICE_MOVE_OTHERS)) channelPermissions.add("move-members");
-            output.add("voice lobby -> " + lobbyChannel + " [" + String.join(", ", channelPermissions) + "]");
-
-            Category category = lobbyChannel.getParent();
-            if (category == null) {
-                output.add("voice category -> null");
-            } else {
-                List<String> categoryPermissions = new ArrayList<>();
-                if (DiscordUtil.checkPermission(category, Permission.VOICE_MOVE_OTHERS)) categoryPermissions.add("move-members");
-                if (DiscordUtil.checkPermission(category, Permission.MANAGE_CHANNEL)) categoryPermissions.add("manage-channel");
-                if (DiscordUtil.checkPermission(category, Permission.MANAGE_PERMISSIONS)) categoryPermissions.add("manage-permissions");
-                output.add("voice category -> " + category + " [" + String.join(", ", categoryPermissions) + "]");
-            }
-        }
-
         TextChannel consoleChannel = DiscordSRV.getPlugin().getConsoleChannel();
         if (consoleChannel == null) {
             output.add("console channel -> null");
         } else {
             List<String> consolePermissions = new ArrayList<>();
-            if (DiscordUtil.checkPermission(consoleChannel, Permission.MESSAGE_READ)) consolePermissions.add("read");
-            if (DiscordUtil.checkPermission(consoleChannel, Permission.MESSAGE_WRITE)) consolePermissions.add("write");
+            if (DiscordUtil.checkPermission(consoleChannel, Permission.VIEW_CHANNEL)) consolePermissions.add("read");
+            if (DiscordUtil.checkPermission(consoleChannel, Permission.MESSAGE_SEND)) consolePermissions.add("write");
             if (DiscordUtil.checkPermission(consoleChannel, Permission.MANAGE_CHANNEL)) consolePermissions.add("channel-manage");
             output.add("console channel -> " + consoleChannel + " [" + String.join(", ", consolePermissions) + "]");
         }
@@ -490,8 +471,8 @@ public class DebugUtil {
             TextChannel textChannel = StringUtils.isNotBlank(textChannelId) ? DiscordSRV.getPlugin().getJda().getTextChannelById(textChannelId) : null;
             if (textChannel != null) {
                 List<String> outputForChannel = new LinkedList<>();
-                if (DiscordUtil.checkPermission(textChannel, Permission.MESSAGE_READ)) outputForChannel.add("read");
-                if (DiscordUtil.checkPermission(textChannel, Permission.MESSAGE_WRITE)) outputForChannel.add("write");
+                if (DiscordUtil.checkPermission(textChannel, Permission.VIEW_CHANNEL)) outputForChannel.add("read");
+                if (DiscordUtil.checkPermission(textChannel, Permission.MESSAGE_SEND)) outputForChannel.add("write");
                 if (DiscordUtil.checkPermission(textChannel, Permission.MANAGE_CHANNEL)) outputForChannel.add("channel-manage");
                 if (DiscordUtil.checkPermission(textChannel, Permission.MESSAGE_MANAGE)) outputForChannel.add("message-manage");
                 if (DiscordUtil.checkPermission(textChannel, Permission.MANAGE_WEBHOOKS)) outputForChannel.add("manage-webhooks");

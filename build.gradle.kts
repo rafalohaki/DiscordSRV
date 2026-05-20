@@ -15,15 +15,18 @@ plugins {
 
 group = "com.discordsrv"
 val minecraftVersion = project.properties["minecraftVersion"]!!.toString()
-val paperApiVersion = project.properties["paperVersion"]!!.toString()
-val targetJavaVersion = 1.8
+val foliaApiVersion = project.properties["foliaVersion"]!!.toString()
+val targetJavaVersion = 21
 
 java {
     val javaVersion = JavaVersion.toVersion(targetJavaVersion)
     sourceCompatibility = javaVersion
     targetCompatibility = javaVersion
-
-    disableAutoTargetJvm() // required because paper-api uses Java 21 (w/ gradle metadata)
+    toolchain {
+        // pin to Java 21 even if Gradle runs on a newer JVM; dynamicproxy annotation processor
+        // currently supports RELEASE_21 max and bails out under newer compilers
+        languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
+    }
 }
 
 indraSpotlessLicenser {
@@ -106,14 +109,11 @@ tasks {
         mustRunAfter("build")
         minimize {
             exclude(dependency("github.scarsz:configuralize:.*"))
-            exclude(dependency("me.scarsz.jdaappender:jda4:.*"))
             exclude(dependency("com.fasterxml.jackson.core:jackson-databind:.*"))
         }
 
         relocate("net.dv8tion.jda", "github.scarsz.discordsrv.dependencies.jda")
-        relocate("com.iwebpp.crypto", "github.scarsz.discordsrv.dependencies.iwebpp.crypto")
         relocate("com.vdurmont.emoji", "github.scarsz.discordsrv.dependencies.emoji")
-        relocate("com.neovisionaries.ws", "github.scarsz.discordsrv.dependencies.ws")
         relocate("net.kyori", "github.scarsz.discordsrv.dependencies.kyori")
         relocate("dev.vankka.mcdiscordreserializer", "github.scarsz.discordsrv.dependencies.mcdiscordreserializer")
         relocate("dev.vankka.simpleast", "github.scarsz.discordsrv.dependencies.simpleast")
@@ -143,10 +143,6 @@ tasks {
         exclude("META-INF/*.RSA")
         exclude("META-INF/maven/**")
         exclude("META-INF/proguard/**")
-
-        // TODO: temporarily exclude rogue annotations from jdaappender
-        exclude("org/jetbrains/annotations/**")
-        exclude("org/intellij/lang/annotations/**")
     }
 }
 
@@ -190,15 +186,13 @@ repositories {
 }
 
 dependencies {
-    // Paper API
-    compileOnly("io.papermc.paper:paper-api:${paperApiVersion}") {
+    // Folia API (superset of Paper API)
+    compileOnly("dev.folia:folia-api:${foliaApiVersion}") {
         exclude("commons-lang") // Exclude lang in favor of our own lang3
     }
 
-    // JDA
-    api("net.dv8tion:JDA:4.4.1_DiscordSRV.fix-7") {
-        exclude(module = "opus-java") // we don't use voice features
-    }
+    // JDA 6 (audio deps split out since 6.3+; voice module dropped)
+    api("net.dv8tion:JDA:${project.properties["jdaVersion"]}")
 
     // Config
     api("github.scarsz:configuralize:1.3.2") {
@@ -208,7 +202,6 @@ dependencies {
     }
 
     // Logging
-    implementation("me.scarsz.jdaappender:jda4:1.2.3")
     implementation("org.slf4j:slf4j-jdk14:1.7.36")
     implementation("org.slf4j:jcl-over-slf4j:1.7.36")
     // MC <  1.12 = 2.0-beta9
@@ -225,7 +218,7 @@ dependencies {
     api("net.kyori:adventure-text-serializer-plain:${adventureVersion}")
     api("net.kyori:adventure-text-serializer-gson:${adventureVersion}")
     implementation("net.kyori:adventure-platform-bukkit:4.4.0")
-    api("dev.vankka:mcdiscordreserializer:4.3.0")
+    api("dev.vankka:mcdiscordreserializer:${project.properties["mcDiscordReserializerVersion"]}")
 
     // Annotations
     compileOnlyApi("org.jetbrains:annotations:23.0.0")
@@ -301,7 +294,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.14.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.14.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.3")
-    testImplementation("io.papermc.paper:paper-api:${paperApiVersion}")
+    testImplementation("dev.folia:folia-api:${foliaApiVersion}")
 }
 
 tasks {

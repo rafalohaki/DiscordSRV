@@ -27,15 +27,14 @@ import github.scarsz.discordsrv.util.DiscordUtil;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
-import net.dv8tion.jda.api.entities.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
-import net.dv8tion.jda.api.events.message.guild.GuildMessageReceivedEvent;
-import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent;
+import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.exceptions.ErrorHandler;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.ErrorResponse;
 import net.dv8tion.jda.api.requests.RestAction;
-import net.dv8tion.jda.api.requests.restaction.MessageAction;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
@@ -44,48 +43,43 @@ import java.util.concurrent.TimeUnit;
 
 public class DiscordAccountLinkListener extends ListenerAdapter {
 
-    @Override
-    public void onPrivateMessageReceived(PrivateMessageReceivedEvent event) {
-        // don't process messages sent by the bot
-        if (event.getAuthor().getId().equals(event.getJDA().getSelfUser().getId())) return;
-
-        DiscordSRV.api.callEvent(new DiscordPrivateMessageReceivedEvent(event));
-
-        // don't link accounts if config option is disabled
-        if (!DiscordSRV.config().getBoolean("MinecraftDiscordAccountLinkedUsePM")) return;
-
-        String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(event.getMessage().getContentRaw(), event.getAuthor().getId());
-        if (reply != null) event.getMessage().reply(reply).queue();
-    }
-
     private final ErrorHandler ignoreFailedToDeleteMessage = new ErrorHandler()
             .ignore(ErrorResponse.UNKNOWN_MESSAGE)
             .ignore(ErrorResponse.MISSING_ACCESS);
 
     @Override
-    public void onGuildMessageReceived(GuildMessageReceivedEvent event) {
-        // don't process messages sent by bots
-        if (event.getAuthor().isBot()) return;
+    public void onMessageReceived(MessageReceivedEvent event) {
+        // don't process messages sent by the bot
+        if (event.getAuthor().getId().equals(event.getJDA().getSelfUser().getId())) return;
 
-        // if message is not in the link channel, don't process it
-        TextChannel linkChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName("link");
-        if (!event.getChannel().equals(linkChannel)) return;
+        if (event.isFromGuild()) {
+            // guild messages: link channel flow (formerly onGuildMessageReceived)
+            if (event.getAuthor().isBot()) return;
+            TextChannel linkChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName("link");
+            if (!event.getChannel().equals(linkChannel)) return;
 
-        Message receivedMessage = event.getMessage();
-        String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(receivedMessage.getContentRaw(), event.getAuthor().getId());
-        if (reply != null) {
-            int deleteSeconds = DiscordSRV.config().getIntElse("MinecraftDiscordAccountLinkedMessageDeleteSeconds", 0);
-            RestAction<Message> repliedMessage = receivedMessage.reply(reply).delay(deleteSeconds, TimeUnit.SECONDS);
+            Message receivedMessage = event.getMessage();
+            String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(receivedMessage.getContentRaw(), event.getAuthor().getId());
+            if (reply != null) {
+                int deleteSeconds = DiscordSRV.config().getIntElse("MinecraftDiscordAccountLinkedMessageDeleteSeconds", 0);
+                RestAction<Message> repliedMessage = receivedMessage.reply(reply).delay(deleteSeconds, TimeUnit.SECONDS);
 
-            repliedMessage.queue(replyMessage -> {
-                // delete the message after a delay if the config option is set
-                if (deleteSeconds > 0) {
-                    replyMessage.delete().queue(null, ignoreFailedToDeleteMessage);
-                    receivedMessage.delete().queue(null, ignoreFailedToDeleteMessage.handle(ErrorResponse.MISSING_PERMISSIONS,
-                            e -> DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Failed to delete " + receivedMessage.getAuthor() + "'s message in the link channel because of missing permissions.")));
-                }
-            });
+                repliedMessage.queue(replyMessage -> {
+                    if (deleteSeconds > 0) {
+                        replyMessage.delete().queue(null, ignoreFailedToDeleteMessage);
+                        receivedMessage.delete().queue(null, ignoreFailedToDeleteMessage.handle(ErrorResponse.MISSING_PERMISSIONS,
+                                e -> DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Failed to delete " + receivedMessage.getAuthor() + "'s message in the link channel because of missing permissions.")));
+                    }
+                });
+            }
+        } else {
+            // DM / private messages: PM linking flow (formerly onPrivateMessageReceived)
+            DiscordSRV.api.callEvent(new DiscordPrivateMessageReceivedEvent(event));
 
+            if (!DiscordSRV.config().getBoolean("MinecraftDiscordAccountLinkedUsePM")) return;
+
+            String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(event.getMessage().getContentRaw(), event.getAuthor().getId());
+            if (reply != null) event.getMessage().reply(reply).queue();
         }
     }
 

@@ -41,7 +41,6 @@ import github.scarsz.discordsrv.hooks.world.WorldHook;
 import github.scarsz.discordsrv.listeners.*;
 import github.scarsz.discordsrv.modules.alerts.AlertListener;
 import github.scarsz.discordsrv.modules.requirelink.RequireLinkModule;
-import github.scarsz.discordsrv.modules.voice.VoiceModule;
 import github.scarsz.discordsrv.objects.CancellationDetector;
 import github.scarsz.discordsrv.objects.Lag;
 import github.scarsz.discordsrv.objects.MessageFormat;
@@ -56,12 +55,12 @@ import github.scarsz.discordsrv.objects.proxy.AlwaysEnabledPluginDynamicProxy;
 import github.scarsz.discordsrv.objects.threads.*;
 import github.scarsz.discordsrv.util.*;
 import lombok.Getter;
-import me.scarsz.jdaappender.ChannelLoggingHandler;
-import me.scarsz.jdaappender.LogItem;
-import me.scarsz.jdaappender.LogLevel;
 import net.dv8tion.jda.api.*;
 import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.events.ShutdownEvent;
+import net.dv8tion.jda.api.entities.channel.concrete.*;
+import net.dv8tion.jda.api.entities.channel.middleman.*;
+import net.dv8tion.jda.api.entities.channel.unions.*;
+import net.dv8tion.jda.api.events.session.ShutdownEvent;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.exceptions.HierarchyException;
 import net.dv8tion.jda.api.exceptions.PermissionException;
@@ -70,13 +69,15 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.CloseCode;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.RestAction;
-import net.dv8tion.jda.api.requests.restaction.MessageAction;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
+import net.dv8tion.jda.api.utils.messages.MessageRequest;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
 import okhttp3.*;
-import okhttp3.internal.Util;
 import okhttp3.internal.tls.OkHostnameVerifier;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
@@ -168,7 +169,6 @@ public class DiscordSRV extends JavaPlugin {
     // Modules
     @Getter private AlertListener alertListener = null;
     @Getter private RequireLinkModule requireLinkModule;
-    @Getter private VoiceModule voiceModule;
 
     // Config
     @Getter private final Map<String, String> channels = new LinkedHashMap<>(); // <in-game channel name, discord channel>
@@ -193,7 +193,6 @@ public class DiscordSRV extends JavaPlugin {
     // Files
     @Getter private final File configFile = new File(getDataFolder(), "config.yml");
     @Getter private final File messagesFile = new File(getDataFolder(), "messages.yml");
-    @Getter private final File voiceFile = new File(getDataFolder(), "voice.yml");
     @Getter private final File linkingFile = new File(getDataFolder(), "linking.yml");
     @Getter private final File synchronizationFile = new File(getDataFolder(), "synchronization.yml");
     @Getter private final File alertsFile = new File(getDataFolder(), "alerts.yml");
@@ -203,7 +202,6 @@ public class DiscordSRV extends JavaPlugin {
     // JDA & JDA related
     @Getter private JDA jda = null;
     private ExecutorService callbackThreadPool;
-    @Getter private ChannelLoggingHandler consoleAppender;
     private JdaFilter jdaFilter;
 
     public static DiscordSRV getPlugin() {
@@ -222,7 +220,7 @@ public class DiscordSRV extends JavaPlugin {
 
     public void reloadAllowedMentions() {
         // set default mention types to never ping everyone/here
-        MessageAction.setDefaultMentions(config().getStringList("DiscordChatChannelAllowedMentions").stream()
+        MessageRequest.setDefaultMentions(config().getStringList("DiscordChatChannelAllowedMentions").stream()
                 .map(s -> {
                     try {
                         return Message.MentionType.valueOf(s.toUpperCase());
@@ -231,7 +229,7 @@ public class DiscordSRV extends JavaPlugin {
                         return null;
                     }
                 }).filter(Objects::nonNull).collect(Collectors.toSet()));
-        DiscordSRV.debug("Allowed chat mention types: " + MessageAction.getDefaultMentions().stream().map(Enum::name).collect(Collectors.joining(", ")));
+        DiscordSRV.debug("Allowed chat mention types: " + MessageRequest.getDefaultMentions().stream().map(Enum::name).collect(Collectors.joining(", ")));
     }
 
     public void reloadChannels() {
@@ -405,7 +403,6 @@ public class DiscordSRV extends JavaPlugin {
         config = new DynamicConfig();
         config.addSource(DiscordSRV.class, "config", getConfigFile());
         config.addSource(DiscordSRV.class, "messages", getMessagesFile());
-        config.addSource(DiscordSRV.class, "voice", getVoiceFile());
         config.addSource(DiscordSRV.class, "linking", getLinkingFile());
         config.addSource(DiscordSRV.class, "synchronization", getSynchronizationFile());
         config.addSource(DiscordSRV.class, "alerts", getAlertsFile());
@@ -720,7 +717,11 @@ public class DiscordSRV extends JavaPlugin {
         Dispatcher dispatcher = new Dispatcher(
                 new ThreadPoolExecutor(
                         2, 20, 5, TimeUnit.SECONDS,
-                        new SynchronousQueue<>(), Util.threadFactory("OkHttp Dispatcher", false))
+                        new SynchronousQueue<>(), runnable -> {
+                            Thread thread = new Thread(runnable, "OkHttp Dispatcher");
+                            thread.setDaemon(false);
+                            return thread;
+                        })
         );
         dispatcher.setMaxRequests(20);
         dispatcher.setMaxRequestsPerHost(20); // most requests are to discord.com
@@ -887,7 +888,6 @@ public class DiscordSRV extends JavaPlugin {
                     .setMemberCachePolicy(MemberCachePolicy.ALL)
                     .setCallbackPool(callbackThreadPool, false)
                     .setGatewayPool(gatewayThreadPool, true)
-                    .setRateLimitPool(rateLimitThreadPool, true)
                     .setWebsocketFactory(websocketFactory)
                     .setHttpClient(httpClient)
                     .setAutoReconnect(true)
@@ -906,27 +906,29 @@ public class DiscordSRV extends JavaPlugin {
             jda.awaitReady(); // let JDA be assigned as soon as we can, but wait until it's ready
 
             for (Guild guild : jda.getGuilds()) {
-                guild.retrieveOwner(true).queue();
+                guild.retrieveOwner().queue();
                 guild.loadMembers()
                         .onSuccess(members -> DiscordSRV.debug("Loaded " + members.size() + " members in guild " + guild))
                         .onError(throwable -> DiscordSRV.error("Failed to retrieve members of guild " + guild, throwable))
                         .get(); // block DiscordSRV startup until members are loaded
             }
-        } catch (LoginException e) {
+        } catch (net.dv8tion.jda.api.exceptions.InvalidTokenException e) {
             disablePlugin();
-            if (e.getMessage().toLowerCase().contains("the provided token is invalid")) {
-                invalidBotToken = true;
-                DiscordDisconnectListener.printDisconnectMessage(true, "The bot token is invalid");
-            } else {
-                DiscordDisconnectListener.printDisconnectMessage(true, e.getMessage());
-            }
-            return;
+            invalidBotToken = true;
+            DiscordDisconnectListener.printDisconnectMessage(true, "The bot token is invalid");
         } catch (Exception e) {
-            if (e instanceof IllegalStateException && e.getMessage().equals("Was shutdown trying to await status")) {
+            if (e instanceof IllegalStateException && "Was shutdown trying to await status".equals(e.getMessage())) {
                 // already logged by JDA
                 return;
             }
-            DiscordSRV.error("An unknown error occurred building JDA...", e);
+            disablePlugin();
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("the provided token is invalid")) {
+                invalidBotToken = true;
+                DiscordDisconnectListener.printDisconnectMessage(true, "The bot token is invalid");
+            } else {
+                DiscordSRV.error("An unknown error occurred building JDA...", e);
+                DiscordDisconnectListener.printDisconnectMessage(true, e.getMessage());
+            }
             return;
         }
 
@@ -961,64 +963,12 @@ public class DiscordSRV extends JavaPlugin {
             return;
         }
 
-        // see if console channel exists; if it does, tell user where it's been assigned & add console appender
+        // Console channel forwarding: jdaappender (JDA 4-only) was dropped during the JDA 6 migration.
+        // Native SLF4J → JDA 6 forwarder reimplementation is tracked separately; until then this is a no-op.
         if (serverIsLog4jCapable) {
             TextChannel consoleChannel = getConsoleChannel();
             if (consoleChannel != null) {
-                DiscordSRV.info(LangUtil.InternalMessage.CONSOLE_FORWARDING_ASSIGNED_TO_CHANNEL + " " + consoleChannel);
-
-                consoleAppender = new ChannelLoggingHandler(() -> {
-                    TextChannel textChannel = DiscordSRV.getPlugin().getConsoleChannel();
-                    return textChannel != null && textChannel.getGuild().getSelfMember().hasPermission(textChannel, Permission.MESSAGE_READ, Permission.MESSAGE_WRITE) ? textChannel : null;
-                }, config -> {
-                    config.setUseCodeBlocks(config().getBooleanElse("DiscordConsoleChannelUseCodeBlocks", true));
-                    config.setLoggerNamePadding(config().getIntElse("DiscordConsoleChannelPadding", 0));
-                    Set<LogLevel> configuredLevels = config().getStringList("DiscordConsoleChannelLevels").stream()
-                            .map(value -> value.toUpperCase(Locale.ROOT))
-                            .map(s -> {
-                                try {
-                                    return LogLevel.valueOf(s);
-                                } catch (IllegalArgumentException e) {
-                                    DiscordSRV.error("Invalid console logging level '" + s + "', valid options are " + Arrays.stream(LogLevel.values()).map(LogLevel::name).collect(Collectors.joining(", ")));
-                                    return null;
-                                }
-                            })
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet());
-
-                    config.setLogLevels(!configuredLevels.isEmpty() ? EnumSet.copyOf(configuredLevels) : EnumSet.noneOf(LogLevel.class));
-                    config.mapLoggerName("net.minecraft.server.MinecraftServer", "Server");
-                    config.mapLoggerNameFriendly("net.minecraft.server", s -> "Server/" + s);
-                    config.mapLoggerNameFriendly("net.minecraft", s -> "Minecraft/" + s);
-                    config.mapLoggerName("github.scarsz.discordsrv.dependencies.jda", s -> "DiscordSRV/JDA/" + s);
-                    config.addTransformer(logItem -> true, s -> MessageUtil.strip(DiscordUtil.aggressiveStrip(s))); // strip formatting
-                    config.addTransformer(logItem -> true, line -> {
-                        for (Map.Entry<Pattern, String> entry : consoleRegexes.entrySet()) {
-                            line = entry.getKey().matcher(line).replaceAll(entry.getValue());
-                            if (StringUtils.isBlank(line)) return null;
-                        }
-                        return line;
-                    });
-
-                    BiFunction<String, LogItem, String> placeholders = (key, item) -> {
-                        String name = config.padLoggerName(config.resolveLoggerName(item.getLogger()));
-                        String timestamp = TimeUtil.consoleTimeStamp(item.getTimestamp());
-                        String value = config().getString(key);
-
-                        // avoid processing placeholders if config value is empty
-                        if (StringUtils.isBlank(value)) {
-                            return "";
-                        }
-
-                        return PlaceholderUtil.replacePlaceholdersToDiscord(value)
-                                .replace("{date}", timestamp)
-                                .replace("{datetime}", timestamp)
-                                .replace("{name}", StringUtils.isNotBlank(name) ? " " + name : "")
-                                .replace("{level}", config.padLevelName(item.getLevel().name()));
-                    };
-                    config.setPrefixer(item -> placeholders.apply("DiscordConsoleChannelPrefix", item));
-                    config.setSuffixer(item -> placeholders.apply("DiscordConsoleChannelSuffix", item));
-                }).attachLog4jLogging().schedule();
+                DiscordSRV.warning("Console channel forwarding is temporarily disabled after the JDA 6 migration. Configured channel: " + consoleChannel);
             } else {
                 DiscordSRV.info(LangUtil.InternalMessage.NOT_FORWARDING_CONSOLE_OUTPUT.toString());
             }
@@ -1289,7 +1239,6 @@ public class DiscordSRV extends JavaPlugin {
                 if (config().getBoolean("Experiment_MCDiscordReserializer_InBroadcast")) put("Broadcast Reserializer", 1);
                 if (config().getBoolean("Experiment_WebhookChatMessageDelivery")) put("Webhooks", 1);
                 if (config().getMap("GroupRoleSynchronizationGroupsAndRolesToSync").values().stream().anyMatch(s -> s.toString().replace("0", "").length() > 0)) put("Group -> role synchronization", 1);
-                if (config().getBoolean("Voice enabled")) put("Voice", 1);
                 if (config().getBoolean("Require linked account to play.Enabled")) {
                     put("Require linked account to play", 1);
                     if (config().getBoolean("Require linked account to play.Subscriber role.Require subscriber role to join")) {
@@ -1372,8 +1321,6 @@ public class DiscordSRV extends JavaPlugin {
                     cycleTime
             );
         }
-
-        voiceModule = new VoiceModule();
 
         PluginCommand discordCommand = getCommand("discord");
         if (discordCommand != null && discordCommand.getPlugin() != this) {
@@ -1461,9 +1408,6 @@ public class DiscordSRV extends JavaPlugin {
                 // stop alerts
                 if (alertListener != null) alertListener.unregister();
 
-                // shut down voice module
-                if (voiceModule != null) voiceModule.shutdown();
-
                 // kill channel topic updater
                 if (channelTopicUpdater != null) channelTopicUpdater.interrupt();
 
@@ -1485,9 +1429,6 @@ public class DiscordSRV extends JavaPlugin {
                 // close cancellation detectors
                 if (legacyCancellationDetector != null) legacyCancellationDetector.close();
                 if (modernCancellationDetector != null) modernCancellationDetector.close();
-
-                // shutdown the console appender
-                if (consoleAppender != null) consoleAppender.shutdown();
 
                 // remove the jda filter
                 if (jdaFilter != null) {
@@ -1973,7 +1914,7 @@ public class DiscordSRV extends JavaPlugin {
             return content;
         };
 
-        Message discordMessage = translateMessage(messageFormat, translator);
+        MessageCreateData discordMessage = translateMessage(messageFormat, translator);
         if (discordMessage == null) return;
 
         String webhookName = translator.apply(messageFormat.getWebhookName(), false);
@@ -1981,7 +1922,7 @@ public class DiscordSRV extends JavaPlugin {
 
         if (messageFormat.isUseWebhooks()) {
             WebhookUtil.deliverMessage(textChannel, webhookName, webhookAvatarUrl,
-                    discordMessage.getContentRaw(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
+                    discordMessage.getContent(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
         } else {
             DiscordUtil.queueMessage(textChannel, discordMessage, true);
         }
@@ -2034,7 +1975,7 @@ public class DiscordSRV extends JavaPlugin {
             return content;
         };
 
-        Message discordMessage = translateMessage(messageFormat, translator);
+        MessageCreateData discordMessage = translateMessage(messageFormat, translator);
         if (discordMessage == null) return;
 
         String webhookName = translator.apply(messageFormat.getWebhookName(), false);
@@ -2042,7 +1983,7 @@ public class DiscordSRV extends JavaPlugin {
 
         if (messageFormat.isUseWebhooks()) {
             WebhookUtil.deliverMessage(textChannel, webhookName, webhookAvatarUrl,
-                    discordMessage.getContentRaw(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
+                    discordMessage.getContent(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
         } else {
             DiscordUtil.queueMessage(textChannel, discordMessage, true);
         }
@@ -2053,8 +1994,8 @@ public class DiscordSRV extends JavaPlugin {
     }
 
     @CheckReturnValue
-    public static Message translateMessage(MessageFormat messageFormat, BiFunction<String, Boolean, String> translator) {
-        MessageBuilder messageBuilder = new MessageBuilder();
+    public static MessageCreateData translateMessage(MessageFormat messageFormat, BiFunction<String, Boolean, String> translator) {
+        MessageCreateBuilder messageBuilder = new MessageCreateBuilder();
         Optional.ofNullable(messageFormat.getContent()).map(content -> translator.apply(content, true))
                 .filter(StringUtils::isNotBlank).ifPresent(messageBuilder::setContent);
 
@@ -2175,9 +2116,9 @@ public class DiscordSRV extends JavaPlugin {
         return avatarUrl;
     }
 
-    public static int getLength(Message message) {
+    public static int getLength(MessageCreateData message) {
         StringBuilder content = new StringBuilder();
-        content.append(message.getContentRaw());
+        content.append(message.getContent());
 
         message.getEmbeds().stream().findFirst().ifPresent(embed -> {
             if (embed.getTitle() != null) {

@@ -27,9 +27,9 @@ import github.scarsz.discordsrv.api.events.WatchdogMessagePreProcessEvent;
 import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.PlaceholderUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
 import github.scarsz.discordsrv.util.TimeUtil;
-import net.dv8tion.jda.api.entities.TextChannel;
-import org.bukkit.Bukkit;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 
 import java.util.concurrent.TimeUnit;
 
@@ -49,9 +49,10 @@ public class ServerWatchdog extends Thread {
 
     @Override
     public void run() {
-        int taskNumber = Bukkit.getScheduler().scheduleSyncRepeatingTask(DiscordSRV.getPlugin(), this::tick, 0, 20);
-        if (taskNumber == -1) {
-            DiscordSRV.debug(Debug.WATCHDOG, "Failed to schedule repeating task for server watchdog; returning");
+        try {
+            SchedulerUtil.runTaskTimer(DiscordSRV.getPlugin(), this::tick, 1, 20);
+        } catch (Throwable t) {
+            DiscordSRV.debug(Debug.WATCHDOG, "Failed to schedule repeating task for server watchdog; returning: " + t.getMessage());
             return;
         }
 
