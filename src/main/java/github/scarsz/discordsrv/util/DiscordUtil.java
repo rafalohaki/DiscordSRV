@@ -63,6 +63,32 @@ public class DiscordUtil {
     }
 
     /**
+     * Build an error handler for {@code RestAction#queue(success, error)} so that asynchronous Discord
+     * failures (rate-limits, missing permissions, network errors) are surfaced as plugin warnings
+     * instead of being silently swallowed by the JDA default handler.
+     */
+    private static java.util.function.Consumer<Throwable> queueError(String operation) {
+        return error -> {
+            if (error instanceof PermissionException) {
+                PermissionException pe = (PermissionException) error;
+                if (pe.getPermission() != Permission.UNKNOWN) {
+                    DiscordSRV.warning(operation + " failed: missing permission \"" + pe.getPermission().getName() + "\"");
+                } else {
+                    DiscordSRV.warning(operation + " failed: " + pe.getMessage());
+                }
+            } else if (error instanceof net.dv8tion.jda.api.exceptions.ErrorResponseException) {
+                net.dv8tion.jda.api.exceptions.ErrorResponseException ere =
+                        (net.dv8tion.jda.api.exceptions.ErrorResponseException) error;
+                DiscordSRV.warning(operation + " failed: Discord returned " + ere.getErrorCode() + " " + ere.getMeaning());
+            } else if (error instanceof net.dv8tion.jda.api.exceptions.RateLimitedException) {
+                DiscordSRV.warning(operation + " was rate-limited by Discord — will retry on next cycle");
+            } else {
+                DiscordSRV.warning(operation + " failed: " + error.getClass().getSimpleName() + ": " + error.getMessage());
+            }
+        };
+    }
+
+    /**
      * Get the given Role's name
      * @param role Role to get the name of
      * @return The name of the Role; if the Role is null, a blank string.
@@ -93,7 +119,10 @@ public class DiscordUtil {
     private static final Pattern USER_MENTION_PATTERN = Pattern.compile("(<@!?([0-9]{16,20})>)");
     private static final Pattern CHANNEL_MENTION_PATTERN = Pattern.compile("(<#([0-9]{16,20})>)");
     private static final Pattern ROLE_MENTION_PATTERN = Pattern.compile("(<@&([0-9]{16,20})>)");
-    private static final Pattern EMOTE_MENTION_PATTERN = Pattern.compile("(<a?:([a-zA-Z]{2,32}):[0-9]{16,20}>)");
+    // Upstream issue #1626: Discord custom emoji names allow underscores (`[a-zA-Z0-9_]{2,32}`)
+    // per their API spec. The old `[a-zA-Z]{2,32}` regex silently dropped any emoji with `_` in
+    // its name from the Discord→Minecraft translation path. Widened to match the full charset.
+    private static final Pattern EMOTE_MENTION_PATTERN = Pattern.compile("(<a?:([a-zA-Z0-9_]{2,32}):[0-9]{16,20}>)");
 
     /**
      * Converts Discord-compatible &lt;@12345742934270> mentions to human readable @mentions
@@ -516,8 +545,12 @@ public class DiscordUtil {
             return;
         }
 
+        DiscordSRV.debug(Debug.UNCATEGORIZED, "Setting topic of channel " + channel.getName() + " to: " + (topic.length() > 80 ? topic.substring(0, 77) + "..." : topic));
         try {
-            channel.getManager().setTopic(topic).queue();
+            channel.getManager().setTopic(topic).queue(
+                    success -> DiscordSRV.debug(Debug.UNCATEGORIZED, "Topic update for #" + channel.getName() + " succeeded"),
+                    queueError("Set topic of #" + channel.getName())
+            );
         } catch (Exception e) {
             if (e instanceof PermissionException) {
                 PermissionException pe = (PermissionException) e;
@@ -536,11 +569,15 @@ public class DiscordUtil {
      * @param name The new name to be set
      */
     public static void setChannelName(GuildChannel channel, String name, boolean blockThread) {
+        DiscordSRV.debug(Debug.UNCATEGORIZED, "Renaming channel " + channel.getName() + " to: " + name);
         try {
             if (blockThread) {
                 channel.getManager().setName(name).complete();
             } else {
-                channel.getManager().setName(name).queue();
+                channel.getManager().setName(name).queue(
+                        success -> DiscordSRV.debug(Debug.UNCATEGORIZED, "Rename of #" + channel.getName() + " succeeded"),
+                        queueError("Rename channel #" + channel.getName())
+                );
             }
         } catch (Exception e) {
             if (e instanceof PermissionException) {
@@ -661,7 +698,7 @@ public class DiscordUtil {
 
     public static void setAvatar(File avatar) throws RuntimeException {
         try {
-            getJda().getSelfUser().getManager().setAvatar(Icon.from(avatar)).queue();
+            getJda().getSelfUser().getManager().setAvatar(Icon.from(avatar)).queue(null, queueError("Set bot avatar"));
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }
@@ -694,7 +731,7 @@ public class DiscordUtil {
         rolesToRemove.removeAll(nonInteractableRolesToRemove);
         nonInteractableRolesToRemove.forEach(role -> DiscordSRV.warning("Failed to remove role \"" + role.getName() + "\" from \"" + member.getEffectiveName() + "\" because the bot's highest role is lower than the target role and thus can't interact with it"));
 
-        member.getGuild().modifyMemberRoles(member, rolesToAdd, rolesToRemove).queue();
+        member.getGuild().modifyMemberRoles(member, rolesToAdd, rolesToRemove).queue(null, queueError("Modify roles for " + member.getUser().getName()));
     }
 
     public static void addRoleToMember(Member member, Role role) {
@@ -704,7 +741,7 @@ public class DiscordUtil {
         }
 
         try {
-            member.getGuild().addRoleToMember(member, role).queue();
+            member.getGuild().addRoleToMember(member, role).queue(null, queueError("Add role " + role.getName() + " to " + member.getUser().getName()));
         } catch (PermissionException e) {
             if (e.getPermission() != Permission.UNKNOWN) {
                 DiscordSRV.warning("Could not add " + member + " to role " + role + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
@@ -726,7 +763,7 @@ public class DiscordUtil {
                 .collect(Collectors.toList());
 
         try {
-            member.getGuild().modifyMemberRoles(member, rolesToAdd, Collections.emptySet()).queue();
+            member.getGuild().modifyMemberRoles(member, rolesToAdd, Collections.emptySet()).queue(null, queueError("Add roles to " + member.getUser().getName()));
         } catch (PermissionException e) {
             if (e.getPermission() != Permission.UNKNOWN) {
                 DiscordSRV.warning("Could not add " + member + " to role(s) " + rolesToAdd + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
@@ -752,7 +789,7 @@ public class DiscordUtil {
                 .collect(Collectors.toList());
 
         try {
-            member.getGuild().modifyMemberRoles(member, Collections.emptySet(), rolesToRemove).queue();
+            member.getGuild().modifyMemberRoles(member, Collections.emptySet(), rolesToRemove).queue(null, queueError("Remove roles from " + member.getUser().getName()));
         } catch (PermissionException e) {
             if (e.getPermission() != Permission.UNKNOWN) {
                 DiscordSRV.warning("Could not demote " + member + " from role(s) " + rolesToRemove + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
@@ -782,7 +819,7 @@ public class DiscordUtil {
         }
 
         try {
-            member.modifyNickname(nickname).queue();
+            member.modifyNickname(nickname).queue(null, queueError("Modify nickname for " + member.getUser().getName()));
         } catch (PermissionException e) {
             if (e.getPermission() != Permission.UNKNOWN) {
                 DiscordSRV.warning("Could not set nickname for " + member + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
@@ -818,7 +855,7 @@ public class DiscordUtil {
         daysOfMessagesToDelete = Math.abs(daysOfMessagesToDelete);
 
         try {
-            member.ban(daysOfMessagesToDelete, java.util.concurrent.TimeUnit.DAYS).queue();
+            member.ban(daysOfMessagesToDelete, java.util.concurrent.TimeUnit.DAYS).queue(null, queueError("Ban member " + member.getUser().getName()));
         } catch (PermissionException e) {
             if (e.getPermission() != Permission.UNKNOWN) {
                 DiscordSRV.warning("Failed to ban " + member + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");

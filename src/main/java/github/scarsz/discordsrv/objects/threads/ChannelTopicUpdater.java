@@ -24,6 +24,7 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.PlaceholderUtil;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.concurrent.TimeUnit;
@@ -36,18 +37,15 @@ public class ChannelTopicUpdater extends Thread {
 
     @Override
     public void run() {
+        DiscordSRV.info("Channel topic updater started — first update runs immediately, then every ≥10 min " +
+                "(Discord rate-limits channel topic edits to ~2 per 10 min per channel).");
         while (true) {
             int rate = DiscordSRV.config().getInt("ChannelTopicUpdaterRateInMinutes");
             if (rate < 10) rate = 10;
 
             if (DiscordUtil.getJda() != null) {
-                String chatTopic = PlaceholderUtil.replaceChannelUpdaterPlaceholders(LangUtil.Message.CHAT_CHANNEL_TOPIC.toString());
-                if (StringUtils.isNotBlank(chatTopic))
-                    DiscordUtil.setTextChannelTopic(DiscordSRV.getPlugin().getMainTextChannel(), chatTopic);
-
-                String consoleTopic = PlaceholderUtil.replaceChannelUpdaterPlaceholders(LangUtil.Message.CONSOLE_CHANNEL_TOPIC.toString());
-                if (StringUtils.isNotBlank(consoleTopic))
-                    DiscordUtil.setTextChannelTopic(DiscordSRV.getPlugin().getConsoleChannel(), consoleTopic);
+                tryUpdate("chat", DiscordSRV.getPlugin().getMainTextChannel(), LangUtil.Message.CHAT_CHANNEL_TOPIC);
+                tryUpdate("console", DiscordSRV.getPlugin().getConsoleChannel(), LangUtil.Message.CONSOLE_CHANNEL_TOPIC);
             } else {
                 DiscordSRV.debug("Skipping channel topic update cycle, JDA was null");
             }
@@ -59,6 +57,25 @@ public class ChannelTopicUpdater extends Thread {
                 return;
             }
         }
+    }
+
+    /**
+     * Pre-validates the topic update so silent skip paths (null channel, blank format) get a debug
+     * log instead of disappearing — makes it possible to diagnose "topic never updates" without
+     * patching the plugin. Actual setTopic logs success/failure asynchronously via DiscordUtil.
+     */
+    private void tryUpdate(String label, TextChannel channel, LangUtil.Message format) {
+        if (channel == null) {
+            DiscordSRV.debug("Topic updater: " + label + " channel is null — skipping (configure the matching channel in config.yml Channels)");
+            return;
+        }
+        String topic = PlaceholderUtil.replaceChannelUpdaterPlaceholders(format.toString());
+        if (StringUtils.isBlank(topic)) {
+            DiscordSRV.debug("Topic updater: " + label + " channel topic format is blank — skipping (set "
+                    + format.getKeyName() + " in messages.yml to enable)");
+            return;
+        }
+        DiscordUtil.setTextChannelTopic(channel, topic);
     }
 
 }

@@ -225,8 +225,12 @@ public class DiscordSRV extends JavaPlugin {
         // set default mention types to never ping everyone/here
         MessageRequest.setDefaultMentions(config().getStringList("DiscordChatChannelAllowedMentions").stream()
                 .map(s -> {
+                    // JDA 5+ renamed Emote → Emoji across the API. Accept the legacy spelling so configs
+                    // generated before the JDA 6 migration keep working without manual edits.
+                    String normalized = s.toUpperCase();
+                    if ("EMOTE".equals(normalized)) normalized = "EMOJI";
                     try {
-                        return Message.MentionType.valueOf(s.toUpperCase());
+                        return Message.MentionType.valueOf(normalized);
                     } catch (IllegalArgumentException e) {
                         DiscordSRV.error("Unknown mention type \"" + s + "\" defined in DiscordChatChannelAllowedMentions");
                         return null;

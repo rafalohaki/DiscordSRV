@@ -60,6 +60,49 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     private final java.util.concurrent.locks.ReentrantLock cacheLock = new java.util.concurrent.locks.ReentrantLock();
     private int count;
 
+    // Upstream issue #1833: when the JDBC connection drops, the periodic refresh task used to print a
+    // SQLException stack trace every 10s. We instead throttle the warning to once per 5 minutes and
+    // skip the iteration entirely if the connection cannot answer a 2-second liveness probe.
+    private static final long CONNECTION_ERROR_LOG_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5);
+    private volatile long lastConnectionErrorLogAt = 0L;
+    private volatile boolean lastConnectionAlive = true;
+
+    /**
+     * Checks if the JDBC connection can answer a quick liveness probe. Used to short-circuit
+     * scheduled tasks (count refresh, cache warm-up) so a dead DB does not flood the console.
+     */
+    private boolean isConnectionAlive() {
+        try {
+            return connection != null && !connection.isClosed() && connection.isValid(2);
+        } catch (SQLException ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Logs a connection-failure warning at most once per CONNECTION_ERROR_LOG_INTERVAL_MS, and a
+     * one-shot recovery message the first time the connection comes back. Returns true if the
+     * caller should proceed (connection is alive), false if it should skip.
+     */
+    private boolean ensureConnectionForBackgroundTask(String taskLabel) {
+        boolean alive = isConnectionAlive();
+        if (alive) {
+            if (!lastConnectionAlive) {
+                DiscordSRV.info("JDBC account link backend connection recovered — resuming " + taskLabel + ".");
+                lastConnectionAlive = true;
+            }
+            return true;
+        }
+        lastConnectionAlive = false;
+        long now = System.currentTimeMillis();
+        if (now - lastConnectionErrorLogAt > CONNECTION_ERROR_LOG_INTERVAL_MS) {
+            DiscordSRV.warning("JDBC account link backend connection is unavailable — skipping " + taskLabel
+                    + " (will log again in " + (CONNECTION_ERROR_LOG_INTERVAL_MS / 60_000) + " min if still down).");
+            lastConnectionErrorLogAt = now;
+        }
+        return false;
+    }
+
     private void putExpiring(UUID uuid, String discordId, long expiryTime) {
         cacheLock.lock();
         try {
@@ -200,6 +243,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         DiscordSRV.info("JDBC tables passed validation, using JDBC account backend");
 
         SchedulerUtil.runTaskTimerAsynchronously(DiscordSRV.getPlugin(), () -> {
+            if (!ensureConnectionForBackgroundTask("online player cache refresh")) return;
+
             long currentTime = System.currentTimeMillis();
             for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
                 UUID uuid = onlinePlayer.getUniqueId();
@@ -216,7 +261,14 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
                     }
                 }
             } catch (SQLException t) {
-                t.printStackTrace();
+                // Mark connection dead so the next iteration short-circuits via ensureConnectionForBackgroundTask;
+                // log message once at WARN (no stack trace spam every 10s — see upstream #1833).
+                lastConnectionAlive = false;
+                long now = System.currentTimeMillis();
+                if (now - lastConnectionErrorLogAt > CONNECTION_ERROR_LOG_INTERVAL_MS) {
+                    DiscordSRV.warning("JDBC count refresh failed: " + t.getMessage());
+                    lastConnectionErrorLogAt = now;
+                }
             }
         }, 1L, 200L);
     }

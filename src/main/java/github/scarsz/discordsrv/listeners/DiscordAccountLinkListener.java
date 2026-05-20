@@ -60,7 +60,9 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
 
             Message receivedMessage = event.getMessage();
             String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(receivedMessage.getContentRaw(), event.getAuthor().getId());
-            if (reply != null) {
+            // Upstream issue #1862: empty messages.yml keys cause Message.reply("") to throw
+            // "Provided text for message may not be empty". Skip empty replies safely.
+            if (reply != null && !reply.isEmpty()) {
                 int deleteSeconds = DiscordSRV.config().getIntElse("MinecraftDiscordAccountLinkedMessageDeleteSeconds", 0);
                 RestAction<Message> repliedMessage = receivedMessage.reply(reply).delay(deleteSeconds, TimeUnit.SECONDS);
 
@@ -79,7 +81,8 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
             if (!DiscordSRV.config().getBoolean("MinecraftDiscordAccountLinkedUsePM")) return;
 
             String reply = DiscordSRV.getPlugin().getAccountLinkManager().process(event.getMessage().getContentRaw(), event.getAuthor().getId());
-            if (reply != null) event.getMessage().reply(reply).queue();
+            // Upstream issue #1862: skip empty replies (operator may have blanked messages.yml keys intentionally).
+            if (reply != null && !reply.isEmpty()) event.getMessage().reply(reply).queue();
         }
     }
 

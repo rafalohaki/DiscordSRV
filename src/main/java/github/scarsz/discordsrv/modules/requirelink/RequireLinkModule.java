@@ -37,7 +37,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
-import org.bukkit.event.player.PlayerLoginEvent;
 
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -269,7 +268,7 @@ public class RequireLinkModule implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onEventLowest(AsyncPlayerPreLoginEvent event) {
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "AsyncPlayerPreLoginEvent result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
             return;
         }
         check(event.getClass().getSimpleName(), EventPriority.LOWEST, event.getName(), event.getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(AsyncPlayerPreLoginEvent.Result.valueOf(result), message));
@@ -277,7 +276,7 @@ public class RequireLinkModule implements Listener {
     @EventHandler(priority = EventPriority.LOW)
     public void onEventLow(AsyncPlayerPreLoginEvent event) {
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "AsyncPlayerPreLoginEvent result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
             return;
         }
         check(event.getClass().getSimpleName(), EventPriority.LOW, event.getName(), event.getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(AsyncPlayerPreLoginEvent.Result.valueOf(result), message));
@@ -285,7 +284,7 @@ public class RequireLinkModule implements Listener {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onEventNormal(AsyncPlayerPreLoginEvent event) {
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "AsyncPlayerPreLoginEvent result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
             return;
         }
         check(event.getClass().getSimpleName(), EventPriority.NORMAL, event.getName(), event.getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(AsyncPlayerPreLoginEvent.Result.valueOf(result), message));
@@ -293,7 +292,7 @@ public class RequireLinkModule implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onEventHigh(AsyncPlayerPreLoginEvent event) {
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "AsyncPlayerPreLoginEvent result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
             return;
         }
         check(event.getClass().getSimpleName(), EventPriority.HIGH, event.getName(), event.getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(AsyncPlayerPreLoginEvent.Result.valueOf(result), message));
@@ -301,51 +300,17 @@ public class RequireLinkModule implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onEventHighest(AsyncPlayerPreLoginEvent event) {
         if (!event.getLoginResult().equals(AsyncPlayerPreLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "AsyncPlayerPreLoginEvent result for " + event.getName() + " = " + event.getLoginResult() + ", skipping");
             return;
         }
         check(event.getClass().getSimpleName(), EventPriority.HIGHEST, event.getName(), event.getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(AsyncPlayerPreLoginEvent.Result.valueOf(result), message));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onEventLowest(PlayerLoginEvent event) {
-        if (!event.getResult().equals(PlayerLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getPlayer().getName() + " = " + event.getResult() + ", skipping");
-            return;
-        }
-        check(event.getClass().getSimpleName(), EventPriority.LOWEST, event.getPlayer().getName(), event.getPlayer().getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(PlayerLoginEvent.Result.valueOf(result), message));
-    }
-    @EventHandler(priority = EventPriority.LOW)
-    public void onEventLow(PlayerLoginEvent event) {
-        if (!event.getResult().equals(PlayerLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getPlayer().getName() + " = " + event.getResult() + ", skipping");
-            return;
-        }
-        check(event.getClass().getSimpleName(), EventPriority.LOW, event.getPlayer().getName(), event.getPlayer().getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(PlayerLoginEvent.Result.valueOf(result), message));
-    }
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onEventNormal(PlayerLoginEvent event) {
-        if (!event.getResult().equals(PlayerLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getPlayer().getName() + " = " + event.getResult() + ", skipping");
-            return;
-        }
-        check(event.getClass().getSimpleName(), EventPriority.NORMAL, event.getPlayer().getName(), event.getPlayer().getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(PlayerLoginEvent.Result.valueOf(result), message));
-    }
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onEventHigh(PlayerLoginEvent event) {
-        if (!event.getResult().equals(PlayerLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getPlayer().getName() + " = " + event.getResult() + ", skipping");
-            return;
-        }
-        check(event.getClass().getSimpleName(), EventPriority.HIGH, event.getPlayer().getName(), event.getPlayer().getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(PlayerLoginEvent.Result.valueOf(result), message));
-    }
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onEventHighest(PlayerLoginEvent event) {
-        if (!event.getResult().equals(PlayerLoginEvent.Result.ALLOWED)) {
-            DiscordSRV.debug(Debug.REQUIRE_LINK, "PlayerLoginEvent event result for " + event.getPlayer().getName() + " = " + event.getResult() + ", skipping");
-            return;
-        }
-        check(event.getClass().getSimpleName(), EventPriority.HIGHEST, event.getPlayer().getName(), event.getPlayer().getUniqueId(), event.getAddress().getHostAddress(), (result, message) -> event.disallow(PlayerLoginEvent.Result.valueOf(result), message));
-    }
+    // Upstream issue #1824: Paper 1.21.7+ logs "[HorriblePlayerLoginEventHack] You have plugins listening
+    // to the PlayerLoginEvent, this will cause re-configuration APIs to be unavailable: [..., DiscordSRV, ...]"
+    // The five AsyncPlayerPreLoginEvent listeners above already cover every priority slot we need for
+    // require-link enforcement (pre-login, async, plenty early to disallow), so the duplicate PlayerLoginEvent
+    // listeners that used to live here were pure noise — removed to silence Paper's warning and free up
+    // the new reconfiguration phase for the rest of the server.
 
 }

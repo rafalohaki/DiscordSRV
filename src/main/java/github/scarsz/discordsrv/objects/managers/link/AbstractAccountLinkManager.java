@@ -160,7 +160,10 @@ public abstract class AbstractAccountLinkManager implements AccountLinkManager {
                 if (role != null) {
                     Member member = role.getGuild().getMemberById(discordId);
                     if (member != null) {
-                        role.getGuild().removeRoleFromMember(member, role).queue();
+                        role.getGuild().removeRoleFromMember(member, role).queue(
+                                null,
+                                err -> DiscordSRV.warning("Failed to remove role " + role.getName() + " from " + member.getUser().getName() + ": " + err.getMessage())
+                        );
                     } else {
                         DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Couldn't remove \"linked\" role from null member: " + uuid);
                     }
@@ -198,7 +201,10 @@ public abstract class AbstractAccountLinkManager implements AccountLinkManager {
 
         if (member != null && DiscordSRV.config().getBoolean("NicknameSynchronizationEnabled")) {
             if (member.getGuild().getSelfMember().canInteract(member)) {
-                member.modifyNickname(null).queue();
+                member.modifyNickname(null).queue(
+                        null,
+                        err -> DiscordSRV.warning("Failed to clear nickname for " + member.getUser().getName() + ": " + err.getMessage())
+                );
             } else {
                 DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Can't remove nickname from " + member + ", bot is lower in hierarchy");
             }

@@ -72,7 +72,10 @@ public class PlayerBanListener implements Listener {
             DiscordSRV.getPlugin().getMainGuild().retrieveBan(userSnowflake)
                     .queue(ban -> {
                         DiscordSRV.info("Unbanning player " + event.getPlayer().getName() + " from Discord (ID " + discordId + ") because they aren't banned on the server");
-                        DiscordSRV.getPlugin().getMainGuild().unban(userSnowflake).queue();
+                        DiscordSRV.getPlugin().getMainGuild().unban(userSnowflake).queue(
+                                null,
+                                err -> DiscordSRV.warning("Failed to unban Discord user " + discordId + ": " + err.getMessage())
+                        );
                     }, failure -> DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Failed to check if player " + event.getPlayer().getName() + " is banned in Discord: " + failure.getMessage()));
         });
     }

@@ -86,8 +86,18 @@ public class DiscordConsoleListener extends ListenerAdapter {
         // stop the command from being run if an API user cancels the event
         if (consoleEvent.isCancelled()) return;
 
+        // Upstream issue #1830: Paper 1.21.8+ rejects mixed-case command names at the console parser
+        // (e.g. "Op user" fails, "op user" works). Normalize the command NAME only (lowercase + strip
+        // "namespace:" prefix), preserving arg case — usernames and other args may legitimately be mixed.
+        String fullCommand = consoleEvent.getCommand();
+        int spaceIdx = fullCommand.indexOf(' ');
+        String cmdName = (spaceIdx < 0 ? fullCommand : fullCommand.substring(0, spaceIdx)).toLowerCase();
+        int colonIdx = cmdName.lastIndexOf(':');
+        if (colonIdx >= 0) cmdName = cmdName.substring(colonIdx + 1);
+        String dispatchable = cmdName + (spaceIdx < 0 ? "" : fullCommand.substring(spaceIdx));
+
         SchedulerUtil.runTask(DiscordSRV.getPlugin(), () ->
-                Bukkit.getServer().dispatchCommand(Bukkit.getServer().getConsoleSender(), consoleEvent.getCommand()));
+                Bukkit.getServer().dispatchCommand(Bukkit.getServer().getConsoleSender(), dispatchable));
 
         DiscordSRV.api.callEvent(new DiscordConsoleCommandPostProcessEvent(event, consoleEvent.getCommand(), true));
     }
