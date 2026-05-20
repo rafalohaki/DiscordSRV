@@ -346,7 +346,9 @@ public class ApiManager extends ListenerAdapter {
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
             DiscordSRV.debug(instance.getClass().getName() + "#" + method.getName() + " threw an error: " + cause);
-            if (!logException(method.getClass(), cause)) cause.printStackTrace();
+            if (!logException(method.getClass(), cause)) {
+                DiscordSRV.error(instance.getClass().getName() + "#" + method.getName() + " threw", cause);
+            }
         } catch (IllegalAccessException e) {
             // this should never happen
             DiscordSRV.error(

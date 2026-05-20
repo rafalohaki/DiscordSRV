@@ -31,6 +31,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -173,10 +176,19 @@ public class AppendOnlyFileAccountLinkManager extends AbstractFileAccountLinkMan
                     DiscordSRV.error(LangUtil.InternalMessage.LINKED_ACCOUNTS_SAVE_FAILED + ": " + e.getMessage());
                     return;
                 }
-                //noinspection ResultOfMethodCallIgnored
-                file.delete();
+                // Atomic replace: never have a window where the file is gone. Previous code did
+                // file.delete() + FileUtils.moveFile() which left no file at all if moveFile threw.
+                // Falls back to REPLACE_EXISTING-only if the filesystem does not support atomic moves
+                // (e.g. some network filesystems).
                 try {
-                    FileUtils.moveFile(tmpFile, file);
+                    Files.move(tmpFile.toPath(), file.toPath(),
+                            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException atomicEx) {
+                    try {
+                        Files.move(tmpFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        DiscordSRV.error("Failed moving accounts.aof.tmp to accounts.aof: " + e.getMessage());
+                    }
                 } catch (IOException e) {
                     DiscordSRV.error("Failed moving accounts.aof.tmp to accounts.aof: " + e.getMessage());
                 }

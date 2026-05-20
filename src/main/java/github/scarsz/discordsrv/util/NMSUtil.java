@@ -105,8 +105,7 @@ public class NMSUtil {
             field_PropertyMap_properties = method_GameProfile_getProperties.getReturnType().getDeclaredField("properties");
             field_PropertyMap_properties.setAccessible(true);
         } catch (Throwable e) {
-            DiscordSRV.debug(Debug.UNCATEGORIZED, "Failed to generate NMS classes, methods, and fields.");
-            e.printStackTrace();
+            DiscordSRV.error("Failed to generate NMS classes, methods, and fields", e);
             failed = true;
         }
     }
@@ -156,7 +155,7 @@ public class NMSUtil {
         try {
             return method_CraftPlayer_getHandle.invoke(player);
         } catch (Throwable e) {
-            e.printStackTrace();
+            DiscordSRV.error("NMSUtil#getHandle(Player) failed", e);
         }
         return null;
     }
@@ -169,7 +168,7 @@ public class NMSUtil {
             try {
                 return method_EntityPlayer_getGameProfile.invoke(handle);
             } catch (Throwable e) {
-                e.printStackTrace();
+                DiscordSRV.error("NMSUtil#getGameProfileOrResolvableProfile failed", e);
             }
         }
         return null;
@@ -188,7 +187,7 @@ public class NMSUtil {
                 return it.next();
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            DiscordSRV.error("NMSUtil#getTextureProperty failed", e);
         }
         return null;
     }
@@ -211,7 +210,7 @@ public class NMSUtil {
                 if (matcher.find()) return matcher.group("texture");
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            DiscordSRV.error("NMSUtil#getTexture failed", e);
         }
         return null;
     }
@@ -222,7 +221,7 @@ public class NMSUtil {
         try {
             return method_Advancement_getHandle.invoke(advancement);
         } catch (Throwable e) {
-            e.printStackTrace();
+            DiscordSRV.error("NMSUtil#getHandle(Object advancement) failed", e);
         }
         return null;
     }

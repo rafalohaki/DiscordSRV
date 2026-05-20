@@ -128,7 +128,9 @@ public class CommandLinked {
                     // target is probably a Minecraft player name
                     OfflinePlayer player;
 
-                    player = Bukkit.getOnlinePlayers().stream()
+                    // Snapshot online players — on Folia the live collection can mutate between
+                    // regions while we're streaming over it.
+                    player = java.util.List.copyOf(Bukkit.getOnlinePlayers()).stream()
                             .filter(p -> p.getName().equalsIgnoreCase(target))
                             .findFirst().orElse(null);
 

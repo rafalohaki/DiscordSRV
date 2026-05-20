@@ -609,6 +609,16 @@ public class DiscordChatListener extends ListenerAdapter {
 
         // It uses the command from the consoleEvent in case the API user wants to hijack/change it
         // at this point, the user has permission to run commands at all and is able to run the requested command, so do it
+        // Upstream issue #1830 (mirrors DiscordConsoleListener): Paper 1.21.8+ rejects mixed-case
+        // command names at the parser ("Op user" fails, "op user" works). Normalize the command
+        // NAME only (lowercase + strip "namespace:" prefix); preserve args case (usernames etc.).
+        String fullCommand = consoleEvent.getCommand();
+        int spaceIdx = fullCommand.indexOf(' ');
+        String cmdName = (spaceIdx < 0 ? fullCommand : fullCommand.substring(0, spaceIdx)).toLowerCase();
+        int colonIdx = cmdName.lastIndexOf(':');
+        if (colonIdx >= 0) cmdName = cmdName.substring(colonIdx + 1);
+        String dispatchable = cmdName + (spaceIdx < 0 ? "" : fullCommand.substring(spaceIdx));
+
         SchedulerUtil.runTask(DiscordSRV.getPlugin(), () -> {
             CommandSender preferredSender;
 
@@ -617,7 +627,7 @@ public class DiscordChatListener extends ListenerAdapter {
             else
                 preferredSender = new CommandSenderDynamicProxy(Bukkit.getConsoleSender(), event).getProxy();
 
-            Bukkit.getServer().dispatchCommand(preferredSender, consoleEvent.getCommand());
+            Bukkit.getServer().dispatchCommand(preferredSender, dispatchable);
         });
 
         DiscordSRV.api.callEvent(new DiscordConsoleCommandPostProcessEvent(event, consoleEvent.getCommand(), false));

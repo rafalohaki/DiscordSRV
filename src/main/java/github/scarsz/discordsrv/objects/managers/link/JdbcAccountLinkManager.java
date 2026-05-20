@@ -58,7 +58,12 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     private final ExpiringDualHashBidiMap<UUID, String> cache = new ExpiringDualHashBidiMap<>(TimeUnit.SECONDS.toMillis(10));
     // ReentrantLock instead of `synchronized (cache)` — compound check-then-update semantics with virtual-thread safety.
     private final java.util.concurrent.locks.ReentrantLock cacheLock = new java.util.concurrent.locks.ReentrantLock();
-    private int count;
+    // java.sql.Connection is NOT thread-safe — concurrent prepareStatement / executeUpdate from the
+    // periodic refresh task, JDA listeners and player-login handlers can interleave PreparedStatements
+    // mid-flight. This lock serializes every connection use; the lock is reentrant so composite
+    // operations like link() → unlink() → INSERT keep working without nested-lock contortion.
+    private final java.util.concurrent.locks.ReentrantLock connectionLock = new java.util.concurrent.locks.ReentrantLock();
+    private volatile int count;
 
     // Upstream issue #1833: when the JDBC connection drops, the periodic refresh task used to print a
     // SQLException stack trace every 10s. We instead throttle the warning to once per 5 minutes and
@@ -72,10 +77,13 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
      * scheduled tasks (count refresh, cache warm-up) so a dead DB does not flood the console.
      */
     private boolean isConnectionAlive() {
+        connectionLock.lock();
         try {
             return connection != null && !connection.isClosed() && connection.isValid(2);
         } catch (SQLException ignored) {
             return false;
+        } finally {
+            connectionLock.unlock();
         }
     }
 
@@ -246,13 +254,16 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             if (!ensureConnectionForBackgroundTask("online player cache refresh")) return;
 
             long currentTime = System.currentTimeMillis();
-            for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            // Snapshot the player collection — iterating the live view while regions tick on Folia
+            // can race with teleports/quits and CME on Paper.
+            for (Player onlinePlayer : List.copyOf(Bukkit.getOnlinePlayers())) {
                 UUID uuid = onlinePlayer.getUniqueId();
                 if (!cache.containsKey(uuid) || cache.getExpiryTime(uuid) - TimeUnit.SECONDS.toMillis(30) < currentTime) {
                     putExpiring(uuid, getDiscordIdBypassCache(uuid), currentTime + EXPIRY_TIME_ONLINE);
                 }
             }
 
+            connectionLock.lock();
             try (final PreparedStatement statement = connection.prepareStatement(
                     "select COUNT(*) as accountcount from " + accountsTable + ";")) {
                 try (ResultSet resultSet = statement.executeQuery()) {
@@ -269,6 +280,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
                     DiscordSRV.warning("JDBC count refresh failed: " + t.getMessage());
                     lastConnectionErrorLogAt = now;
                 }
+            } finally {
+                connectionLock.unlock();
             }
         }, 1L, 200L);
     }
@@ -276,50 +289,72 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     public void migrateFile() {
         File accountsFile = new File(DiscordSRV.getPlugin().getDataFolder(), "accounts.aof");
         if (accountsFile.exists()) {
+            if (accountsFile.length() == 0) {
+                if (!accountsFile.delete()) {
+                    accountsFile.deleteOnExit();
+                }
+                return;
+            }
+            DiscordSRV.info("linked accounts file exists and we want to use JDBC backend, importing...");
+            Map<String, UUID> accounts = new AppendOnlyFileAccountLinkManager().getLinkedAccounts();
+            File importFile = new File(accountsFile.getParentFile(), "accounts.aof.imported");
+            if (!accountsFile.renameTo(importFile)) {
+                DiscordSRV.error("Failed to import linked accounts file: cannot move " + accountsFile.getName() + " to " + importFile.getName());
+                return;
+            }
+
+            // Hold the lock across the whole transaction — setAutoCommit / commit / rollback are
+            // connection-wide and must not interleave with other JDBC operations.
+            connectionLock.lock();
+            boolean restoreAutoCommit = false;
             try {
-                if (accountsFile.length() != 0) {
-                    DiscordSRV.info("linked accounts file exists and we want to use JDBC backend, importing...");
-                    Map<String, UUID> accounts = new AppendOnlyFileAccountLinkManager().getLinkedAccounts();
-                    File importFile = new File(accountsFile.getParentFile(), "accounts.aof.imported");
-                    if (!accountsFile.renameTo(importFile)) throw new RuntimeException("Failed to move accounts file to " + importFile.getName());
-                    connection.setAutoCommit(false);
-                    for (Map.Entry<String, UUID> entry : accounts.entrySet()) {
-                        String discord = entry.getKey();
-                        UUID uuid = entry.getValue();
+                connection.setAutoCommit(false);
+                restoreAutoCommit = true;
+                for (Map.Entry<String, UUID> entry : accounts.entrySet()) {
+                    String discord = entry.getKey();
+                    UUID uuid = entry.getValue();
 
-                        unlink(discord);
-                        unlink(uuid);
+                    unlink(discord);
+                    unlink(uuid);
 
-                        try (final PreparedStatement statement = connection.prepareStatement("insert into " + accountsTable + " (discord, uuid) VALUES (?, ?)")) {
-                            statement.setString(1, discord);
-                            statement.setString(2, uuid.toString());
-                            statement.executeUpdate();
-                        }
-                    }
-                    DiscordSRV.info("Imported " + accounts.size() + " accounts to JDBC, committing...");
-                    connection.setAutoCommit(true); // commit all changes at once
-                    DiscordSRV.info("Finished importing accounts to JDBC backend");
-                } else {
-                    if (!accountsFile.delete()) {
-                        accountsFile.deleteOnExit();
+                    try (final PreparedStatement statement = connection.prepareStatement("insert into " + accountsTable + " (discord, uuid) VALUES (?, ?)")) {
+                        statement.setString(1, discord);
+                        statement.setString(2, uuid.toString());
+                        statement.executeUpdate();
                     }
                 }
+                DiscordSRV.info("Imported " + accounts.size() + " accounts to JDBC, committing...");
+                connection.commit();
+                DiscordSRV.info("Finished importing accounts to JDBC backend");
             } catch (Exception e) {
-                if (e instanceof RuntimeException) {
-                    DiscordSRV.error("Failed to import linked accounts file: " + e.getMessage());
-                } else {
-                    DiscordSRV.error("Failed to import linked accounts file", e);
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackEx) {
+                    DiscordSRV.error("Rollback after failed import also failed: " + rollbackEx.getMessage());
                 }
+                DiscordSRV.error("Failed to import linked accounts file: " + e.getMessage());
+            } finally {
+                if (restoreAutoCommit) {
+                    try {
+                        connection.setAutoCommit(true);
+                    } catch (SQLException restoreEx) {
+                        DiscordSRV.error("Failed to restore auto-commit after import: " + restoreEx.getMessage());
+                    }
+                }
+                connectionLock.unlock();
             }
         }
     }
 
     private void dropExpiredCodes() {
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("delete from " + codesTable + " where `expiration` < ?")) {
             statement.setLong(1, System.currentTimeMillis());
             statement.executeUpdate();
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
     }
 
@@ -330,6 +365,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
         Map<String, UUID> codes = new HashMap<>();
 
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("select * from " + codesTable)) {
             try (final ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
@@ -338,6 +374,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
 
         return codes;
@@ -348,6 +386,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         ensureOffThread(false);
         Map<String, UUID> accounts = new HashMap<>();
 
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("select * from " + accountsTable)) {
             try (final ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
@@ -356,6 +395,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
 
         return accounts;
@@ -375,11 +416,14 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     public String generateCode(UUID playerUuid) {
         // delete an already existing code if one exists
         if (getLinkingCodes().values().stream().anyMatch(playerUuid::equals)) {
+            connectionLock.lock();
             try (final PreparedStatement statement = connection.prepareStatement("delete from " + codesTable + " where `uuid` = ?")) {
                 statement.setString(1, playerUuid.toString());
                 statement.executeUpdate();
             } catch (SQLException e) {
                 DiscordSRV.error(e);
+            } finally {
+                connectionLock.unlock();
             }
         }
 
@@ -389,6 +433,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             code = String.format("%04d", numbers);
         } while (getLinkingCodes().containsKey(code));
 
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("insert into " + codesTable + " (`code`, `uuid`, `expiration`) VALUES (?, ?, ?)")) {
             statement.setString(1, code);
             statement.setString(2, playerUuid.toString());
@@ -396,6 +441,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             statement.executeUpdate();
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
 
         return code;
@@ -428,11 +475,14 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         if (uuid != null) {
             link(discordId, uuid);
 
+            connectionLock.lock();
             try (final PreparedStatement statement = connection.prepareStatement("delete from " + codesTable + " where `code` = ?")) {
                 statement.setString(1, code);
                 statement.executeUpdate();
             } catch (SQLException e) {
                 DiscordSRV.error(e);
+            } finally {
+                connectionLock.unlock();
             }
 
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
@@ -480,6 +530,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     @Override
     public String getDiscordIdBypassCache(UUID uuid) {
         String discordId = null;
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("select discord from " + accountsTable + " where uuid = ?")) {
             statement.setString(1, uuid.toString());
             try (final ResultSet result = statement.executeQuery()) {
@@ -489,6 +540,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
         return discordId;
     }
@@ -498,6 +551,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         ensureOffThread(false);
         Map<UUID, String> results = new HashMap<>();
 
+        connectionLock.lock();
         try {
             Array uuidArray = connection.createArrayOf("varchar", uuids.toArray(new UUID[0]));
             try (final PreparedStatement statement = connection.prepareStatement("select uuid, discord from " + accountsTable + " where uuid in (?)")) {
@@ -530,6 +584,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
 
         return results;
@@ -562,6 +618,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     @Override
     public UUID getUuidBypassCache(String discordId) {
         UUID uuid = null;
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("select uuid from " + accountsTable + " where discord = ?")) {
             statement.setString(1, discordId);
 
@@ -572,6 +629,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
         return uuid;
     }
@@ -591,6 +650,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         ensureOffThread(false);
         Map<String, UUID> results = new HashMap<>();
 
+        connectionLock.lock();
         try {
             Array discordIdArray = connection.createArrayOf("varchar", discordIds.toArray(new String[0]));
             try (final PreparedStatement statement = connection.prepareStatement("select discord, uuid from " + accountsTable + " where discord in (?)")) {
@@ -621,6 +681,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
 
         return results;
@@ -638,6 +700,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         unlink(discordId);
         unlink(uuid);
 
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("insert into " + accountsTable + " (discord, uuid) VALUES (?, ?)")) {
             statement.setString(1, discordId);
             statement.setString(2, uuid.toString());
@@ -648,6 +711,8 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             afterLink(discordId, uuid);
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
     }
 
@@ -658,11 +723,14 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         if (discord == null) return;
 
         beforeUnlink(uuid, discord);
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("delete from " + accountsTable + " where `uuid` = ?")) {
             statement.setString(1, uuid.toString());
             statement.executeUpdate();
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
         cache.remove(uuid);
         afterUnlink(uuid, discord);
@@ -675,11 +743,14 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         if (uuid == null) return;
 
         beforeUnlink(uuid, discordId);
+        connectionLock.lock();
         try (final PreparedStatement statement = connection.prepareStatement("delete from " + accountsTable + " where `discord` = ?")) {
             statement.setString(1, discordId);
             statement.executeUpdate();
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
         cache.removeValue(discordId);
         afterUnlink(uuid, discordId);
@@ -687,12 +758,15 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
     @Override
     public void save() {
+        connectionLock.lock();
         try {
             if (!connection.getAutoCommit()) {
                 connection.commit();
             }
         } catch (SQLException e) {
             DiscordSRV.error(e);
+        } finally {
+            connectionLock.unlock();
         }
     }
 

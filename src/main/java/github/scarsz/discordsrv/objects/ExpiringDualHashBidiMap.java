@@ -25,11 +25,16 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 
     // ConcurrentHashMap drops the per-call synchronized blocks and avoids virtual-thread pinning on Java 21.
     private final Map<K, Long> expiryTimes = new ConcurrentHashMap<>();
+    // DualHashBidiMap is NOT thread-safe — we must guard every super-call below. ReentrantLock
+    // instead of synchronized so that virtual threads do not get pinned to their carrier under load
+    // (matches the project-wide threading rule in CLAUDE.md).
+    final ReentrantLock collectionLock = new ReentrantLock();
     private final long expiryDelay;
 
     public ExpiringDualHashBidiMap(long expiryDelayMillis) {
@@ -39,34 +44,59 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 
     @Override
     public V put(K key, V value) {
-        expiryTimes.put(key, System.currentTimeMillis() + expiryDelay);
-        return super.put(key, value);
+        collectionLock.lock();
+        try {
+            expiryTimes.put(key, System.currentTimeMillis() + expiryDelay);
+            return super.put(key, value);
+        } finally {
+            collectionLock.unlock();
+        }
     }
 
     @SuppressWarnings("UnusedReturnValue")
     public V putNotExpiring(K key, V value) {
-        return super.put(key, value);
+        collectionLock.lock();
+        try {
+            return super.put(key, value);
+        } finally {
+            collectionLock.unlock();
+        }
     }
 
     public V putExpiring(K key, V value, long expiryTime) {
         if (expiryTime < System.currentTimeMillis()) throw new IllegalArgumentException("The expiry time must be in the future");
-        expiryTimes.put(key, expiryTime);
-        return super.put(key, value);
+        collectionLock.lock();
+        try {
+            expiryTimes.put(key, expiryTime);
+            return super.put(key, value);
+        } finally {
+            collectionLock.unlock();
+        }
     }
 
     @Override
     public V remove(Object key) {
-        expiryTimes.remove(key);
-        return super.remove(key);
+        collectionLock.lock();
+        try {
+            expiryTimes.remove(key);
+            return super.remove(key);
+        } finally {
+            collectionLock.unlock();
+        }
     }
 
     @Override
     public K removeValue(Object value) {
-        K key = getKey(value);
-        if (key != null) {
-            expiryTimes.remove(key);
+        collectionLock.lock();
+        try {
+            K key = getKey(value);
+            if (key != null) {
+                expiryTimes.remove(key);
+            }
+            return super.removeValue(value);
+        } finally {
+            collectionLock.unlock();
         }
-        return super.removeValue(value);
     }
 
     public long getExpiryTime(K key) {
@@ -85,25 +115,26 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 
     @SuppressWarnings({"SuspiciousMethodCalls"})
     private void keyExpired(Object key) {
-        remove(key);
+        // Caller holds collectionLock — uses super.remove directly to avoid taking the lock twice.
         expiryTimes.remove(key);
+        super.remove(key);
     }
 
     public static class ExpiryThread extends Thread {
 
-        private static final Set<WeakReference<ExpiringDualHashBidiMap<?, ?>>> references = new HashSet<>();
+        private static final Set<WeakReference<ExpiringDualHashBidiMap<?, ?>>> references = ConcurrentHashMap.newKeySet();
 
         private ExpiryThread() {
             super("DiscordSRV " + ExpiryThread.class.getSimpleName());
-            Runtime.getRuntime().addShutdownHook(new Thread(this::interrupt));
+            setDaemon(true);
+            Runtime.getRuntime().addShutdownHook(new Thread(this::interrupt, "DiscordSRV ExpiryThread shutdown hook"));
         }
 
-        @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
         @Override
         public void run() {
             while (!isInterrupted()) {
                 long currentTime = System.currentTimeMillis();
-                for (WeakReference<ExpiringDualHashBidiMap<?, ?>> reference : new HashSet<>(references)) {
+                for (WeakReference<ExpiringDualHashBidiMap<?, ?>> reference : references) {
                     final ExpiringDualHashBidiMap<?, ?> collection = reference.get();
                     if (collection == null) {
                         references.remove(reference);
@@ -114,9 +145,14 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
                     collection.expiryTimes.forEach((key, value) -> {
                         if (value < currentTime) removals.add(key);
                     });
-                    // DualHashBidiMap parent is not thread-safe; keep this short critical section.
-                    synchronized (collection) {
+                    if (removals.isEmpty()) continue;
+                    // DualHashBidiMap parent is not thread-safe — ReentrantLock keeps the critical
+                    // section consistent with the rest of the public API (put/remove/...).
+                    collection.collectionLock.lock();
+                    try {
                         removals.forEach(collection::keyExpired);
+                    } finally {
+                        collection.collectionLock.unlock();
                     }
                 }
 

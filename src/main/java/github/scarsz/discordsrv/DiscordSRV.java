@@ -456,7 +456,7 @@ public class DiscordSRV extends JavaPlugin {
             descriptionField.setAccessible(true);
             descriptionField.set(this, description);
         } catch (Exception e) {
-            e.printStackTrace();
+            DiscordSRV.error("Failed to register discordsrv.sync.* permission defaults", e);
         }
     }
 
@@ -474,14 +474,18 @@ public class DiscordSRV extends JavaPlugin {
         DiscordSRV.debug("Language is " + config.getLanguage().getName());
 
         version = getDescription().getVersion();
-        Thread initThread = new Thread(this::init, "DiscordSRV - Initialization");
-        initThread.setUncaughtExceptionHandler((t, e) -> {
-            // make DiscordSRV go red in /plugins
-            disablePlugin();
-            error(e);
-            getLogger().severe("DiscordSRV failed to load properly: " + e.getMessage() + ". See " + github.scarsz.discordsrv.util.DebugUtil.run("DiscordSRV") + " for more information. Can't figure it out? Go to https://discordsrv.com/discord for help");
-        });
-        initThread.start();
+        // Virtual thread: init blocks on JDA gateway connect, HTTP update check, JDBC connect and
+        // file I/O — all virtual-thread friendly. Avoids tying up a platform thread for the entire
+        // boot sequence on Java 21.
+        Thread.ofVirtual()
+                .name("DiscordSRV - Initialization")
+                .uncaughtExceptionHandler((t, e) -> {
+                    // make DiscordSRV go red in /plugins
+                    disablePlugin();
+                    error(e);
+                    getLogger().severe("DiscordSRV failed to load properly: " + e.getMessage() + ". See " + github.scarsz.discordsrv.util.DebugUtil.run("DiscordSRV") + " for more information. Can't figure it out? Go to https://discordsrv.com/discord for help");
+                })
+                .start(this::init);
 
         if (Bukkit.getWorlds().size() > 0) {
             playerDataFolder = new File(Bukkit.getWorlds().get(0).getWorldFolder().getAbsolutePath(), "/playerdata");
@@ -535,8 +539,10 @@ public class DiscordSRV extends JavaPlugin {
         // start the update checker (will skip if disabled)
         if (!isUpdateCheckDisabled()) {
             if (updateChecker == null) {
-                final ThreadFactory gatewayThreadFactory = new ThreadFactoryBuilder().setNameFormat("DiscordSRV - Update Checker").build();
-                updateChecker = Executors.newScheduledThreadPool(1);
+                // Scheduled executor backed by virtual threads — HTTP call to GitHub is fully
+                // virtual-thread friendly, no need to burn a platform thread for the 6-hour cadence.
+                ThreadFactory virtualFactory = Thread.ofVirtual().name("DiscordSRV - Update Checker", 0L).factory();
+                updateChecker = Executors.newScheduledThreadPool(1, virtualFactory);
             }
             updateChecker.schedule(() -> {
                 DiscordSRV.updateIsAvailable = UpdateUtil.checkForUpdates();
@@ -982,8 +988,10 @@ public class DiscordSRV extends JavaPlugin {
         reloadRegexes();
         reloadRoleAliases();
 
-        // schedule slash commands to be updated later when plugins are ready (once the server had started up completely)
-        SchedulerUtil.runTask(this, () -> SchedulerUtil.runTaskAsynchronously(this, api::updateSlashCommands));
+        // Wait one tick so other plugins' onEnable() has a chance to register SlashCommandProviders,
+        // then issue the JDA REST calls off-tick. Previously this was runTask → runTaskAsynchronously
+        // which is one scheduler hop too many.
+        SchedulerUtil.runTaskLaterAsynchronously(this, api::updateSlashCommands, 1L);
 
         // warn if the console channel is connected to a chat channel
         if (getMainTextChannel() != null && getConsoleChannel() != null && getMainTextChannel().getId().equals(getConsoleChannel().getId())) DiscordSRV.warning(LangUtil.InternalMessage.CONSOLE_CHANNEL_ASSIGNED_TO_LINKED_CHANNEL);

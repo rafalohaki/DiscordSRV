@@ -86,6 +86,9 @@ public class PlayerUtil {
             }
         }
         if (notificationSound == null) {
+            // System.err here (not DiscordSRV.warning) because this static initializer can run
+            // before the plugin is enabled — and the test classpath does not bundle log4j-core,
+            // so touching DiscordSRV during class init would throw NoClassDefFoundError under JUnit.
             System.err.println("Failed to get notification sound, chat notification sounds will not function properly");
         }
     }

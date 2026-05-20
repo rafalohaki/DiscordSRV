@@ -47,6 +47,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -314,8 +315,11 @@ public class DiscordUtil {
 
         queueMessage(channel, message, m -> {
             if (expiration > 0) {
-                try { Thread.sleep(expiration); } catch (InterruptedException ignored) {}
-                deleteMessage(m);
+                // Non-blocking delete: queueAfter schedules deletion on JDA's RateLimit thread pool
+                // without blocking the gateway thread. Thread.sleep here pinned the JDA worker for
+                // the full expiration window — fatal under any non-trivial volume.
+                if (m.isFromType(ChannelType.PRIVATE)) return;
+                m.delete().queueAfter(expiration, TimeUnit.MILLISECONDS, null, queueError("Auto-delete expired message in #" + channel.getName()));
             }
         });
         if (overflow != null) sendMessage(channel, overflow, expiration);

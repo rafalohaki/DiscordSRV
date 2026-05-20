@@ -24,13 +24,20 @@ import github.scarsz.discordsrv.DiscordSRV;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 
 import java.util.StringJoiner;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class DiscordChatChannelCommandFeedbackForwarder {
 
     private final MessageReceivedEvent event;
 
+    // send() may be invoked from multiple threads:
+    //  - the command-dispatch thread (server tick / region scheduler on Folia)
+    //  - PaperForwardingCommandSender#processComponent callbacks delivered after dispatch returns
+    //  - the SchedulerUtil.runTaskLater flush task
+    // A single ReentrantLock keeps buffer mutations and the flush task consistent. Virtual-thread
+    // friendly per CLAUDE.md (no carrier-thread pinning under JDA gateway threads).
+    private final ReentrantLock bufferLock = new ReentrantLock();
     private StringJoiner messageBuffer = new StringJoiner("\n");
-
     private boolean bufferCollecting = false;
 
     public DiscordChatChannelCommandFeedbackForwarder(MessageReceivedEvent event) {
@@ -45,24 +52,34 @@ public class DiscordChatChannelCommandFeedbackForwarder {
     }
 
     public void send(String message) {
-        if (this.bufferCollecting) { // If the buffer has started collecting messages, we should just add this one to it.
-            if (DiscordUtil.escapeMarkdown(this.messageBuffer + "\n" + message).length() > 1998) { // If the message will be too long (allowing for markdown escaping and the newline)
-                // Send the message, then clear the buffer and add this message to the empty buffer
-                DiscordUtil.sendMessage(event.getChannel().asTextChannel(), DiscordUtil.escapeMarkdown(this.messageBuffer.toString()), DiscordSRV.config().getInt("DiscordChatChannelConsoleCommandExpiration") * 1000);
-                this.messageBuffer = new StringJoiner("\n");
-                this.messageBuffer.add(message);
-            } else { // If adding this message to the buffer won't send it over the 2000 character limit
-                this.messageBuffer.add(message);
+        bufferLock.lock();
+        try {
+            if (this.bufferCollecting) { // If the buffer has started collecting messages, we should just add this one to it.
+                if (DiscordUtil.escapeMarkdown(this.messageBuffer + "\n" + message).length() > 1998) { // If the message will be too long (allowing for markdown escaping and the newline)
+                    // Send the message, then clear the buffer and add this message to the empty buffer
+                    DiscordUtil.sendMessage(event.getChannel().asTextChannel(), DiscordUtil.escapeMarkdown(this.messageBuffer.toString()), DiscordSRV.config().getInt("DiscordChatChannelConsoleCommandExpiration") * 1000);
+                    this.messageBuffer = new StringJoiner("\n");
+                    this.messageBuffer.add(message);
+                } else { // If adding this message to the buffer won't send it over the 2000 character limit
+                    this.messageBuffer.add(message);
+                }
+            } else { // Messages aren't currently being collected, let's start doing that
+                this.bufferCollecting = true;
+                this.messageBuffer.add(message); // This message is the first one in the buffer
+                SchedulerUtil.runTaskLater(DiscordSRV.getPlugin(), () -> { // Collect messages for 3 ticks, then send
+                    bufferLock.lock();
+                    try {
+                        this.bufferCollecting = false;
+                        if (this.messageBuffer.length() == 0) return; // There's nothing in the buffer to send, leave it
+                        DiscordUtil.sendMessage(event.getChannel().asTextChannel(), DiscordUtil.escapeMarkdown(this.messageBuffer.toString()), DiscordSRV.config().getInt("DiscordChatChannelConsoleCommandExpiration") * 1000);
+                        this.messageBuffer = new StringJoiner("\n");
+                    } finally {
+                        bufferLock.unlock();
+                    }
+                }, 3L);
             }
-        } else { // Messages aren't currently being collected, let's start doing that
-            this.bufferCollecting = true;
-            this.messageBuffer.add(message); // This message is the first one in the buffer
-            SchedulerUtil.runTaskLater(DiscordSRV.getPlugin(), () -> { // Collect messages for 3 ticks, then send
-                this.bufferCollecting = false;
-                if (this.messageBuffer.length() == 0) return; // There's nothing in the buffer to send, leave it
-                DiscordUtil.sendMessage(event.getChannel().asTextChannel(), DiscordUtil.escapeMarkdown(this.messageBuffer.toString()), DiscordSRV.config().getInt("DiscordChatChannelConsoleCommandExpiration") * 1000);
-                this.messageBuffer = new StringJoiner("\n");
-            }, 3L);
+        } finally {
+            bufferLock.unlock();
         }
     }
 

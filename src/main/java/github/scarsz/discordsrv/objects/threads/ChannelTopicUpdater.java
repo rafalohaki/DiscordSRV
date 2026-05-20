@@ -33,6 +33,9 @@ public class ChannelTopicUpdater extends Thread {
 
     public ChannelTopicUpdater() {
         setName("DiscordSRV - Channel Topic Updater");
+        // Daemon so this loop never holds back JVM shutdown; the outer plugin disable path also
+        // calls interrupt() (DiscordSRV#onDisable around line 1417).
+        setDaemon(true);
     }
 
     @Override
