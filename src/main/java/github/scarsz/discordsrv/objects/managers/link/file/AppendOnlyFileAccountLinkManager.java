@@ -147,48 +147,64 @@ public class AppendOnlyFileAccountLinkManager extends AbstractFileAccountLinkMan
 
     @Override
     public void save() {
-        File file = getFile();
-        File tmpFile = getTemporaryFile();
-        tmpFile.deleteOnExit();
-
-
-        DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Saving accounts.aof file...");
-
-        long startTime = System.currentTimeMillis();
+        // Upstream issues #1717 + #1637 (accounts.aof corruption on snapshot): the atomic temp-file
+        // rename below was the original fix. We additionally hold the linkedAccounts lock for the
+        // entire iterate + write + rename sequence so concurrent link()/unlink()/save() calls cannot
+        // interleave file operations. ReentrantLock is reentrant — safe if callers (e.g. readAOF)
+        // already hold it.
+        linkedAccountsLock.lock();
         try {
-            try (FileWriter fileWriter = new FileWriter(tmpFile);
-                 BufferedWriter writer = new BufferedWriter(fileWriter)) {
-                for (Map.Entry<String, UUID> entry : linkedAccounts.entrySet()) {
-                    String discordId = entry.getKey();
-                    UUID uuid = entry.getValue();
-                    writer.write(discordId + " " + uuid + "\n");
-                }
-            } catch (IOException e) {
-                DiscordSRV.error(LangUtil.InternalMessage.LINKED_ACCOUNTS_SAVE_FAILED + ": " + e.getMessage());
-                return;
-            }
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
+            File file = getFile();
+            File tmpFile = getTemporaryFile();
+            tmpFile.deleteOnExit();
+
+            DiscordSRV.debug(Debug.ACCOUNT_LINKING, "Saving accounts.aof file...");
+
+            long startTime = System.currentTimeMillis();
             try {
-                FileUtils.moveFile(tmpFile, file);
-            } catch (IOException e) {
-                DiscordSRV.error("Failed moving accounts.aof.tmp to accounts.aof: " + e.getMessage());
+                try (FileWriter fileWriter = new FileWriter(tmpFile);
+                     BufferedWriter writer = new BufferedWriter(fileWriter)) {
+                    for (Map.Entry<String, UUID> entry : linkedAccounts.entrySet()) {
+                        String discordId = entry.getKey();
+                        UUID uuid = entry.getValue();
+                        writer.write(discordId + " " + uuid + "\n");
+                    }
+                } catch (IOException e) {
+                    DiscordSRV.error(LangUtil.InternalMessage.LINKED_ACCOUNTS_SAVE_FAILED + ": " + e.getMessage());
+                    return;
+                }
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+                try {
+                    FileUtils.moveFile(tmpFile, file);
+                } catch (IOException e) {
+                    DiscordSRV.error("Failed moving accounts.aof.tmp to accounts.aof: " + e.getMessage());
+                }
+            } finally {
+                //noinspection ResultOfMethodCallIgnored
+                tmpFile.delete();
             }
+            DiscordSRV.info(LangUtil.InternalMessage.LINKED_ACCOUNTS_SAVED.toString()
+                    .replace("{ms}", String.valueOf(System.currentTimeMillis() - startTime))
+            );
         } finally {
-            //noinspection ResultOfMethodCallIgnored
-            tmpFile.delete();
+            linkedAccountsLock.unlock();
         }
-        DiscordSRV.info(LangUtil.InternalMessage.LINKED_ACCOUNTS_SAVED.toString()
-                .replace("{ms}", String.valueOf(System.currentTimeMillis() - startTime))
-        );
     }
 
     @Override
     @SneakyThrows
     public void link(String discordId, UUID uuid) {
-        super.link(discordId, uuid);
-
-        FileUtils.writeStringToFile(getFile(), discordId + " " + uuid + "\n", "UTF-8", true);
+        // Hold the lock across super.link() + AOF append so the map update and file write happen
+        // atomically — otherwise a concurrent save() could write the map BEFORE the AOF append lands,
+        // leaving the saved file out of sync with the appended entry until next save (upstream #1637).
+        linkedAccountsLock.lock();
+        try {
+            super.link(discordId, uuid);
+            FileUtils.writeStringToFile(getFile(), discordId + " " + uuid + "\n", "UTF-8", true);
+        } finally {
+            linkedAccountsLock.unlock();
+        }
     }
 
     @Override
