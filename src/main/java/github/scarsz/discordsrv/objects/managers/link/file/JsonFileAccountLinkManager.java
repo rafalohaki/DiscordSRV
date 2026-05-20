@@ -83,8 +83,11 @@ public class JsonFileAccountLinkManager extends AbstractFileAccountLinkManager {
 
         try {
             JsonObject map = new JsonObject();
-            synchronized (linkedAccounts) {
+            linkedAccountsLock.lock();
+            try {
                 linkedAccounts.forEach((discordId, uuid) -> map.addProperty(discordId, String.valueOf(uuid)));
+            } finally {
+                linkedAccountsLock.unlock();
             }
             FileUtils.writeStringToFile(getFile(), map.toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {

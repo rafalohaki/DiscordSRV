@@ -25,12 +25,15 @@ import github.scarsz.discordsrv.DiscordSRV;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
+import org.apache.logging.log4j.core.filter.AbstractFilter;
 import org.apache.logging.log4j.message.Message;
 
-public class JdaFilter implements Filter {
+// AbstractFilter (log4j2 2.20+) provides default implementations of every Filter overload —
+// including the wide variadic variants added for performance — so we only need to override the
+// ones we actually care about.
+public class JdaFilter extends AbstractFilter {
 
     public Result check(String loggerName, Level level, String message, Throwable throwable) {
         // only listen for JDA logs
@@ -104,24 +107,6 @@ public class JdaFilter implements Filter {
                 level,
                 message.getFormattedMessage(),
                 throwable);
-    }
-
-    public void start() {}
-    public void stop() {}
-    public boolean isStarted() {
-        return true;
-    }
-    public boolean isStopped() {
-        return false;
-    }
-
-    @Override
-    public Result getOnMismatch() {
-        return Result.NEUTRAL;
-    }
-    @Override
-    public Result getOnMatch() {
-        return Result.NEUTRAL;
     }
 
 }

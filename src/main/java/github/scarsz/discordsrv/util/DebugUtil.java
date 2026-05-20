@@ -624,8 +624,9 @@ public class DebugUtil {
             map.put("content", content);
         });
 
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("DiscordSRV - Debug Report Upload").build();
-        final ExecutorService executor = Executors.newSingleThreadExecutor(threadFactory);
+        // Virtual thread: debug upload is single-shot HTTP I/O bound on bin.scarsz.me — perfect virtual-thread workload.
+        final ExecutorService executor = Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("DiscordSRV - Debug Report Upload").factory());
         try {
             return executor.invokeAny(Collections.singletonList(() -> {
                 try {

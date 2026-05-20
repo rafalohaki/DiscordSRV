@@ -56,11 +56,16 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     private final String codesTable;
 
     private final ExpiringDualHashBidiMap<UUID, String> cache = new ExpiringDualHashBidiMap<>(TimeUnit.SECONDS.toMillis(10));
+    // ReentrantLock instead of `synchronized (cache)` — compound check-then-update semantics with virtual-thread safety.
+    private final java.util.concurrent.locks.ReentrantLock cacheLock = new java.util.concurrent.locks.ReentrantLock();
     private int count;
 
     private void putExpiring(UUID uuid, String discordId, long expiryTime) {
-        synchronized (cache) {
+        cacheLock.lock();
+        try {
             cache.putExpiring(uuid, discordId, expiryTime);
+        } finally {
+            cacheLock.unlock();
         }
     }
 
@@ -403,13 +408,19 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
     @Override
     public String getDiscordId(UUID uuid) {
-        synchronized (cache) {
+        cacheLock.lock();
+        try {
             if (cache.containsKey(uuid)) return cache.get(uuid);
+        } finally {
+            cacheLock.unlock();
         }
         ensureOffThread(true);
         String discordId = getDiscordIdBypassCache(uuid);
-        synchronized (cache) {
+        cacheLock.lock();
+        try {
             cache.put(uuid, discordId);
+        } finally {
+            cacheLock.unlock();
         }
         return discordId;
     }
@@ -474,13 +485,19 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
     @Override
     public UUID getUuid(String discordId) {
-        synchronized (cache) {
+        cacheLock.lock();
+        try {
             if (cache.containsValue(discordId)) return cache.getKey(discordId);
+        } finally {
+            cacheLock.unlock();
         }
         ensureOffThread(true);
         UUID uuid = getUuidBypassCache(discordId);
-        synchronized (cache) {
+        cacheLock.lock();
+        try {
             cache.put(uuid, discordId);
+        } finally {
+            cacheLock.unlock();
         }
         return uuid;
     }

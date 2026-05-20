@@ -33,7 +33,6 @@ import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import okhttp3.*;
 import okio.Okio;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.io.IOUtils;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.json.JSONArray;
@@ -51,6 +50,32 @@ public class WebhookUtil {
 
     private static final Predicate<Webhook> LEGACY = hook -> hook.getName().endsWith("#1") || hook.getName().endsWith("#2");
     private static boolean loggedBannedWords = false;
+
+    /**
+     * Wraps an {@link InputStream} as a streaming OkHttp {@link RequestBody} so file uploads don't
+     * have to buffer the whole payload in heap. Content length is {@code -1} (chunked transfer);
+     * the underlying stream is closed exactly once after the body is written.
+     */
+    private static RequestBody streamingRequestBody(InputStream data) {
+        return new RequestBody() {
+            @Override
+            public okhttp3.MediaType contentType() {
+                return null;
+            }
+
+            @Override
+            public long contentLength() {
+                return -1L;
+            }
+
+            @Override
+            public void writeTo(okio.BufferedSink sink) throws IOException {
+                try (okio.Source source = okio.Okio.source(data)) {
+                    sink.writeAll(source);
+                }
+            }
+        };
+    }
 
     static {
         try {
@@ -312,8 +337,12 @@ public class WebhookUtil {
                 }
                 if (interactions != null) {
                     JSONArray jsonArray = new JSONArray();
+                    // JDA 6 components V2: SerializableData was removed from Component; use ComponentSerializer
+                    // (added in JDA 6.0 PR #2906) which produces DataObject. toMap() then feeds org.json.JSONObject.
+                    net.dv8tion.jda.api.components.utils.ComponentSerializer serializer =
+                            new net.dv8tion.jda.api.components.utils.ComponentSerializer();
                     for (ActionRow actionRow : interactions) {
-                        /* components skipped: JDA 6 component serialization differs */;
+                        jsonArray.put(new JSONObject(serializer.serialize(actionRow).toMap()));
                     }
                     jsonObject.put("components", jsonArray);
                 }
@@ -351,8 +380,7 @@ public class WebhookUtil {
                         String name = attachmentIndex.get(i);
                         InputStream data = attachments.get(name);
                         if (data != null) {
-                            bodyBuilder.addFormDataPart("files[" + i + "]", name, okhttp3.RequestBody.create(org.apache.commons.io.IOUtils.toByteArray(data), null));
-                            data.close();
+                            bodyBuilder.addFormDataPart("files[" + i + "]", name, streamingRequestBody(data));
                         }
                     }
                 }

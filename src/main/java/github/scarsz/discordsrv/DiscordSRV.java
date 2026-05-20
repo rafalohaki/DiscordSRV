@@ -170,13 +170,15 @@ public class DiscordSRV extends JavaPlugin {
     @Getter private AlertListener alertListener = null;
     @Getter private RequireLinkModule requireLinkModule;
 
-    // Config
-    @Getter private final Map<String, String> channels = new LinkedHashMap<>(); // <in-game channel name, discord channel>
-    @Getter private final Map<String, String> roleAliases = new LinkedHashMap<>(); // key always lowercase
-    @Getter private final Map<Pattern, String> consoleRegexes = new LinkedHashMap<>();
-    @Getter private final Map<Pattern, String> gameRegexes = new LinkedHashMap<>();
-    @Getter private final Map<Pattern, String> discordRegexes = new LinkedHashMap<>();
-    @Getter private final Map<Pattern, String> webhookUsernameRegexes = new LinkedHashMap<>();
+    // Config — ConcurrentHashMap eliminates the per-call synchronized blocks and is virtual-thread-safe on Java 21.
+    // We lose insertion-order iteration, but these maps are populated atomically on reload and iteration order
+    // is not load-bearing for chat-channel lookup or regex matching (both are key/value lookups, not ordered scans).
+    @Getter private final Map<String, String> channels = new ConcurrentHashMap<>(); // <in-game channel name, discord channel>
+    @Getter private final Map<String, String> roleAliases = new ConcurrentHashMap<>(); // key always lowercase
+    @Getter private final Map<Pattern, String> consoleRegexes = new ConcurrentHashMap<>();
+    @Getter private final Map<Pattern, String> gameRegexes = new ConcurrentHashMap<>();
+    @Getter private final Map<Pattern, String> discordRegexes = new ConcurrentHashMap<>();
+    @Getter private final Map<Pattern, String> webhookUsernameRegexes = new ConcurrentHashMap<>();
     private final DynamicConfig config;
 
     // Debugger
@@ -202,6 +204,7 @@ public class DiscordSRV extends JavaPlugin {
     // JDA & JDA related
     @Getter private JDA jda = null;
     private ExecutorService callbackThreadPool;
+    @Getter private github.scarsz.discordsrv.objects.log4j.ConsoleChannelAppender consoleAppender;
     private JdaFilter jdaFilter;
 
     public static DiscordSRV getPlugin() {
@@ -233,36 +236,24 @@ public class DiscordSRV extends JavaPlugin {
     }
 
     public void reloadChannels() {
-        synchronized (channels) {
-            channels.clear();
-            config().dget("Channels").children().forEach(dynamic ->
-                    this.channels.put(dynamic.key().convert().intoString(), dynamic.convert().intoString()));
-        }
+        channels.clear();
+        config().dget("Channels").children().forEach(dynamic ->
+                this.channels.put(dynamic.key().convert().intoString(), dynamic.convert().intoString()));
     }
     public void reloadRoleAliases() {
-        synchronized (roleAliases) {
-            roleAliases.clear();
-            config().dget("DiscordChatChannelRoleAliases").children().forEach(dynamic ->
-                    this.roleAliases.put(dynamic.key().convert().intoString().toLowerCase(), dynamic.convert().intoString()));
-        }
+        roleAliases.clear();
+        config().dget("DiscordChatChannelRoleAliases").children().forEach(dynamic ->
+                this.roleAliases.put(dynamic.key().convert().intoString().toLowerCase(), dynamic.convert().intoString()));
     }
     public void reloadRegexes() {
-        synchronized (consoleRegexes) {
-            consoleRegexes.clear();
-            loadRegexesFromConfig(config().dget("DiscordConsoleChannelFilters"), consoleRegexes);
-        }
-        synchronized (gameRegexes) {
-            gameRegexes.clear();
-            loadRegexesFromConfig(config().dget("DiscordChatChannelGameFilters"), gameRegexes);
-        }
-        synchronized (discordRegexes) {
-            discordRegexes.clear();
-            loadRegexesFromConfig(config().dget("DiscordChatChannelDiscordFilters"), discordRegexes);
-        }
-        synchronized (webhookUsernameRegexes) {
-            webhookUsernameRegexes.clear();
-            loadRegexesFromConfig(config().dget("Experiment_WebhookChatMessageUsernameFilters"), webhookUsernameRegexes);
-        }
+        consoleRegexes.clear();
+        loadRegexesFromConfig(config().dget("DiscordConsoleChannelFilters"), consoleRegexes);
+        gameRegexes.clear();
+        loadRegexesFromConfig(config().dget("DiscordChatChannelGameFilters"), gameRegexes);
+        discordRegexes.clear();
+        loadRegexesFromConfig(config().dget("DiscordChatChannelDiscordFilters"), discordRegexes);
+        webhookUsernameRegexes.clear();
+        loadRegexesFromConfig(config().dget("Experiment_WebhookChatMessageUsernameFilters"), webhookUsernameRegexes);
     }
     private void loadRegexesFromConfig(final Dynamic dynamic, final Map<Pattern, String> map) {
         dynamic.children().forEach(d -> {
@@ -963,12 +954,21 @@ public class DiscordSRV extends JavaPlugin {
             return;
         }
 
-        // Console channel forwarding: jdaappender (JDA 4-only) was dropped during the JDA 6 migration.
-        // Native SLF4J → JDA 6 forwarder reimplementation is tracked separately; until then this is a no-op.
+        // Console channel forwarding: native log4j2 appender replacing the JDA-4-only jdaappender library.
+        // Buffers log events under ReentrantLock and flushes via SchedulerUtil (Folia/virtual-thread safe).
         if (serverIsLog4jCapable) {
             TextChannel consoleChannel = getConsoleChannel();
             if (consoleChannel != null) {
-                DiscordSRV.warning("Console channel forwarding is temporarily disabled after the JDA 6 migration. Configured channel: " + consoleChannel);
+                DiscordSRV.info(LangUtil.InternalMessage.CONSOLE_FORWARDING_ASSIGNED_TO_CHANNEL + " " + consoleChannel);
+                consoleAppender = new github.scarsz.discordsrv.objects.log4j.ConsoleChannelAppender(
+                        () -> {
+                            TextChannel ch = DiscordSRV.getPlugin().getConsoleChannel();
+                            return ch != null && ch.getGuild().getSelfMember().hasPermission(ch, Permission.VIEW_CHANNEL, Permission.MESSAGE_SEND) ? ch : null;
+                        }
+                );
+                consoleAppender.start();
+                ((org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getRootLogger()).addAppender(consoleAppender);
+                consoleAppender.scheduleFlush(this);
             } else {
                 DiscordSRV.info(LangUtil.InternalMessage.NOT_FORWARDING_CONSOLE_OUTPUT.toString());
             }
@@ -1354,8 +1354,9 @@ public class DiscordSRV extends JavaPlugin {
             shutdownFormat = PlaceholderUtil.replacePlaceholdersToDiscord(shutdownFormat);
         }
 
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("DiscordSRV - Shutdown").build();
-        final ExecutorService executor = Executors.newSingleThreadExecutor(threadFactory);
+        // Virtual thread: shutdown task is single-shot HTTP I/O — no benefit from a platform thread + thread pool.
+        final ExecutorService executor = Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("DiscordSRV - Shutdown").factory());
         try {
             String finalShutdownFormat = shutdownFormat;
             executor.invokeAll(Collections.singletonList(() -> {
@@ -1429,6 +1430,9 @@ public class DiscordSRV extends JavaPlugin {
                 // close cancellation detectors
                 if (legacyCancellationDetector != null) legacyCancellationDetector.close();
                 if (modernCancellationDetector != null) modernCancellationDetector.close();
+
+                // shutdown the console appender (detaches from root logger, final flush, stop)
+                if (consoleAppender != null) consoleAppender.shutdown();
 
                 // remove the jda filter
                 if (jdaFilter != null) {

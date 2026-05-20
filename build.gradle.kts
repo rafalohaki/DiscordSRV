@@ -204,11 +204,9 @@ dependencies {
     // Logging
     implementation("org.slf4j:slf4j-jdk14:1.7.36")
     implementation("org.slf4j:jcl-over-slf4j:1.7.36")
-    // MC <  1.12 = 2.0-beta9
-    // MC >= 1.12 = 2.1
-    // Log4J is NOT included in DiscordSRV and is only used for compilation.
-    // This means that DiscordSRV is NOT vulnerable to CVE-2021-44228
-    compileOnly("org.apache.logging.log4j:log4j-core:2.0-beta9")
+    // Modern log4j2 — MC 1.21+ ships log4j2 2.20+; runtime uses Paper's bundled version, this is compile-only.
+    // DiscordSRV does NOT bundle log4j so it is NOT exposed to CVE-2021-44228.
+    compileOnly("org.apache.logging.log4j:log4j-core:2.20.0")
 
     // adventure, adventure-platform, MCDiscordReserializer
     val adventureVersion = "4.25.0"

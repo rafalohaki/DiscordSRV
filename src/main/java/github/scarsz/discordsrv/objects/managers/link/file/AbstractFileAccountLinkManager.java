@@ -38,10 +38,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 
 public abstract class AbstractFileAccountLinkManager extends AbstractAccountLinkManager {
 
     final DualHashBidiMap<String, UUID> linkedAccounts = new DualHashBidiMap<>();
+    // ReentrantLock instead of `synchronized (linkedAccounts)` — does not pin virtual threads on Java 21 even
+    // when blocking file I/O happens in afterLink/afterUnlink callbacks.
+    final ReentrantLock linkedAccountsLock = new ReentrantLock();
 
     public AbstractFileAccountLinkManager() {
         try {
@@ -87,8 +91,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
     @Override
     public String process(String linkCode, String discordId) {
         boolean contains;
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             contains = linkedAccounts.containsKey(discordId);
+        } finally {
+            linkedAccountsLock.unlock();
         }
 
         User user = DiscordUtil.getUserById(discordId);
@@ -99,8 +106,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
                 unlink(discordId);
             } else {
                 UUID uuid;
-                synchronized (linkedAccounts) {
+                linkedAccountsLock.lock();
+                try {
                     uuid = linkedAccounts.get(discordId);
+                } finally {
+                    linkedAccountsLock.unlock();
                 }
                 OfflinePlayer offlinePlayer = DiscordSRV.getPlugin().getServer().getOfflinePlayer(uuid);
                 return LangUtil.Message.ALREADY_LINKED.toString()
@@ -142,8 +152,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
 
     @Override
     public String getDiscordId(UUID uuid) {
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             return linkedAccounts.getKey(uuid);
+        } finally {
+            linkedAccountsLock.unlock();
         }
     }
 
@@ -157,8 +170,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
         Map<UUID, String> results = new HashMap<>();
         for (UUID uuid : uuids) {
             String discordId;
-            synchronized (linkedAccounts) {
+            linkedAccountsLock.lock();
+            try {
                 discordId = linkedAccounts.getKey(uuid);
+            } finally {
+                linkedAccountsLock.unlock();
             }
             if (discordId != null) results.put(uuid, discordId);
         }
@@ -167,8 +183,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
 
     @Override
     public UUID getUuid(String discordId) {
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             return linkedAccounts.get(discordId);
+        } finally {
+            linkedAccountsLock.unlock();
         }
     }
 
@@ -182,8 +201,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
         Map<String, UUID> results = new HashMap<>();
         for (String discordId : discordIds) {
             UUID uuid;
-            synchronized (linkedAccounts) {
+            linkedAccountsLock.lock();
+            try {
                 uuid = linkedAccounts.get(discordId);
+            } finally {
+                linkedAccountsLock.unlock();
             }
             if (uuid != null) results.put(discordId, uuid);
         }
@@ -201,8 +223,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
         unlink(discordId);
         unlink(uuid);
 
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             linkedAccounts.put(discordId, uuid);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         afterLink(discordId, uuid);
     }
@@ -210,14 +235,20 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
     @Override
     public void unlink(UUID uuid) {
         String discordId;
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             discordId = linkedAccounts.getKey(uuid);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         if (discordId == null) return;
 
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             beforeUnlink(uuid, discordId);
             linkedAccounts.removeValue(uuid);
+        } finally {
+            linkedAccountsLock.unlock();
         }
 
         afterUnlink(uuid, discordId);
@@ -226,14 +257,20 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
     @Override
     public void unlink(String discordId) {
         UUID uuid;
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             uuid = linkedAccounts.get(discordId);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         if (uuid == null) return;
 
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             beforeUnlink(uuid, discordId);
             linkedAccounts.remove(discordId);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         afterUnlink(uuid, discordId);
     }

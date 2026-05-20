@@ -195,15 +195,21 @@ public class AppendOnlyFileAccountLinkManager extends AbstractFileAccountLinkMan
     @SneakyThrows
     public void unlink(UUID uuid) {
         String discordId;
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             discordId = linkedAccounts.getKey(uuid);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         if (discordId == null) return;
 
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             beforeUnlink(uuid, discordId);
             linkedAccounts.removeValue(uuid);
             FileUtils.writeStringToFile(getFile(), "-" + discordId + " " + uuid + "\n", "UTF-8", true);
+        } finally {
+            linkedAccountsLock.unlock();
         }
 
         afterUnlink(uuid, discordId);
@@ -212,15 +218,21 @@ public class AppendOnlyFileAccountLinkManager extends AbstractFileAccountLinkMan
     @SneakyThrows
     public void unlink(String discordId) {
         UUID uuid;
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             uuid = linkedAccounts.get(discordId);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         if (uuid == null) return;
 
-        synchronized (linkedAccounts) {
+        linkedAccountsLock.lock();
+        try {
             beforeUnlink(uuid, discordId);
             linkedAccounts.remove(discordId);
             FileUtils.writeStringToFile(getFile(), "-" + discordId + " " + uuid + "\n", "UTF-8", true);
+        } finally {
+            linkedAccountsLock.unlock();
         }
         afterUnlink(uuid, discordId);
     }
