@@ -502,7 +502,8 @@ public class DiscordSRV extends JavaPlugin {
         if (pluginCommand != null && pluginCommand.getPlugin() == this) {
             try {
                 Field owningPlugin = pluginCommand.getClass().getDeclaredField("owningPlugin");
-                if (!owningPlugin.isAccessible()) owningPlugin.setAccessible(true);
+                // isAccessible() is deprecated for removal — setAccessible(true) is idempotent.
+                owningPlugin.setAccessible(true);
 
                 // make the command's owning plugin always enabled (give a better error to the user)
                 owningPlugin.set(pluginCommand, new AlwaysEnabledPluginDynamicProxy().getProxy(this));
@@ -595,7 +596,8 @@ public class DiscordSRV extends JavaPlugin {
         if (serverIsLog4j21Capable && jdaFilter == null) {
             try {
                 Class<?> jdaFilterClass = Class.forName("github.scarsz.discordsrv.objects.log4j.JdaFilter");
-                jdaFilter = (JdaFilter) jdaFilterClass.newInstance();
+                // Class#newInstance() is deprecated for removal — getDeclaredConstructor().newInstance() is the modern equivalent.
+                jdaFilter = (JdaFilter) jdaFilterClass.getDeclaredConstructor().newInstance();
                 ((org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getRootLogger()).addFilter((org.apache.logging.log4j.core.Filter) jdaFilter);
                 debug("JdaFilter applied");
             } catch (Exception e) {
@@ -1470,11 +1472,12 @@ public class DiscordSRV extends JavaPlugin {
                         }
 
                         if (configField != null) {
-                            if (!configField.isAccessible()) configField.setAccessible(true);
+                            // setAccessible(true) is idempotent; isAccessible() is deprecated for removal.
+                            configField.setAccessible(true);
 
                             Object config = configField.get(logger);
                             Field configField2 = config.getClass().getDeclaredField("config");
-                            if (!configField2.isAccessible()) configField2.setAccessible(true);
+                            configField2.setAccessible(true);
 
                             Object config2 = configField2.get(config);
                             if (config2 instanceof org.apache.logging.log4j.core.filter.Filterable) {

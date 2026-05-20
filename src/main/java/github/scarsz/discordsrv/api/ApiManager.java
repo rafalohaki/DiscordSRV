@@ -336,9 +336,8 @@ public class ApiManager extends ListenerAdapter {
      */
     @SuppressWarnings("UnusedReturnValue")
     private boolean invokeMethod(Method method, Object instance, Object... args) {
-        // make sure method is accessible
-        //noinspection deprecation
-        if (!method.isAccessible()) method.setAccessible(true);
+        // setAccessible(true) is idempotent; isAccessible() is deprecated for removal.
+        method.setAccessible(true);
 
         try {
             method.invoke(instance, method.getParameterCount() == 0 ? null : args);

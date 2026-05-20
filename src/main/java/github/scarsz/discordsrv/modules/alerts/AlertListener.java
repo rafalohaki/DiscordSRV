@@ -187,11 +187,21 @@ public class AlertListener implements Listener, EventListener {
     }
 
     public void reloadAlerts() {
+        // Mirrors upstream PR #1819: previously a malformed alerts.yml threw ClassCastException at
+        // config().getOptional("Alerts") and aborted the entire plugin startup. Catch it, disable
+        // alerts, and let the rest of DiscordSRV continue working.
         validClassNameCache.clear();
         activeTriggers.clear();
         anyCommandTrigger = false;
         alerts.clear();
-        Optional<List<Map<?, ?>>> optionalAlerts = DiscordSRV.config().getOptional("Alerts");
+        Optional<List<Map<?, ?>>> optionalAlerts;
+        try {
+            optionalAlerts = DiscordSRV.config().getOptional("Alerts");
+        } catch (ClassCastException e) {
+            DiscordSRV.error("alerts.yml has incorrect structure! Please refer to the wiki and correct the file (https://docs.discordsrv.com/alerts/#usage-examples)");
+            if (registered) unregister();
+            return;
+        }
         if (registered) unregister();
 
         if (!optionalAlerts.isPresent() || optionalAlerts.get().isEmpty()) {

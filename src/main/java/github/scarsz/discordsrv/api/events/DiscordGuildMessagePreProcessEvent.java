@@ -28,7 +28,7 @@ import net.dv8tion.jda.api.entities.channel.unions.*;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 
 /**
- * <p>Called after {@link DiscordMessageReceivedEvent} when the message was validated as coming from a linked channel</p>
+ * <p>Called after {@link DiscordGuildMessageReceivedEvent} when the message was validated as coming from a linked channel</p>
  * <p>Guaranteed to be from a linked {@link TextChannel}</p>
  */
 @SuppressWarnings("LombokGetterMayBeUsed")

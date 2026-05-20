@@ -544,18 +544,48 @@ public class DiscordUtil {
      * @param topic The new topic to be set
      */
     public static void setTextChannelTopic(TextChannel channel, String topic) {
+        setTextChannelTopic(channel, topic, null);
+    }
+
+    /**
+     * Set the topic message of the given channel with caller-provided success/error callbacks.
+     * Used by {@link github.scarsz.discordsrv.objects.threads.ChannelTopicUpdater} so it can
+     * deduplicate repeated permission warnings (upstream PR #1837 behavior) and detect recovery.
+     *
+     * @param channel       channel to set the topic on
+     * @param topic         new topic content
+     * @param errorCallback optional handler invoked on async failure; if null, default logging is used
+     */
+    public static void setTextChannelTopic(TextChannel channel, String topic, Consumer<Throwable> errorCallback) {
+        setTextChannelTopic(channel, topic, errorCallback, null);
+    }
+
+    /**
+     * @param onSuccess optional callback invoked when the topic update succeeds; if null, debug-only.
+     */
+    public static void setTextChannelTopic(TextChannel channel, String topic, Consumer<Throwable> errorCallback, Runnable onSuccess) {
         if (channel == null) {
             DiscordSRV.debug("Attempted to set status of null channel");
             return;
         }
 
         DiscordSRV.debug(Debug.UNCATEGORIZED, "Setting topic of channel " + channel.getName() + " to: " + (topic.length() > 80 ? topic.substring(0, 77) + "..." : topic));
+        Consumer<Throwable> onError = errorCallback != null
+                ? errorCallback
+                : queueError("Set topic of #" + channel.getName());
         try {
             channel.getManager().setTopic(topic).queue(
-                    success -> DiscordSRV.debug(Debug.UNCATEGORIZED, "Topic update for #" + channel.getName() + " succeeded"),
-                    queueError("Set topic of #" + channel.getName())
+                    success -> {
+                        DiscordSRV.debug(Debug.UNCATEGORIZED, "Topic update for #" + channel.getName() + " succeeded");
+                        if (onSuccess != null) onSuccess.run();
+                    },
+                    onError
             );
         } catch (Exception e) {
+            if (errorCallback != null) {
+                errorCallback.accept(e);
+                return;
+            }
             if (e instanceof PermissionException) {
                 PermissionException pe = (PermissionException) e;
                 if (pe.getPermission() != Permission.UNKNOWN) {

@@ -98,7 +98,10 @@ public class PlayerUtil {
         Object sound = soundRegistry.getClass().getMethod("get", key.getClass()).invoke(soundRegistry, key);
         return (Sound) sound;
     }
-    @SuppressWarnings("UnstableApiUsage") // method targets legacy versions
+    // Sound#name() is OldEnum#name() — deprecated for removal in Paper 1.21+ where Sound is a
+    // Registry/Keyed, not an enum. We *only* call it in this legacy branch which is guarded by
+    // `soundClass.isEnum()`, so the deprecation is intentional. Suppress the noisy compile warning.
+    @SuppressWarnings({"UnstableApiUsage", "removal", "deprecation"})
     private static Sound getNotificationSound_legacy() throws Throwable {
         Class<?> soundClass = Class.forName("org.bukkit.Sound");
         if (!soundClass.isEnum()) throw new IllegalStateException("Sound is not an enum");
