@@ -46,6 +46,7 @@ import org.jetbrains.annotations.NotNull;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
@@ -75,6 +76,10 @@ public class ApiManager extends ListenerAdapter {
     private final Set<SlashCommandProvider> slashCommandProviders = new CopyOnWriteArraySet<>();
     private final Set<PluginSlashCommand> runningCommandData = new HashSet<>();
     private boolean anyHooked = false;
+    // Dedup key: "instanceClass#methodName:throwableClass:throwableMessage". Used to suppress
+    // per-event stack-trace spam when a downstream plugin (e.g. CMI compiled against the JDA-4-era
+    // DiscordSRV API) throws the same error on every dispatched event.
+    private final Set<String> loggedExceptionSignatures = ConcurrentHashMap.newKeySet();
 
     private final EnumSet<GatewayIntent> intents = EnumSet.of(
             // required for DiscordSRV's use
@@ -83,7 +88,14 @@ public class ApiManager extends ListenerAdapter {
             GatewayIntent.GUILD_EXPRESSIONS,
             GatewayIntent.GUILD_VOICE_STATES,
             GatewayIntent.GUILD_MESSAGES,
-            GatewayIntent.DIRECT_MESSAGES
+            GatewayIntent.DIRECT_MESSAGES,
+            // Privileged intent — REQUIRED since Discord API v10 (August 2022) to read message
+            // content via getContentRaw(). Without it JDA returns empty content and EVERY Discord→MC
+            // command path silently fails (playerlist, !-prefixed console commands, console-channel
+            // command bridge, chat relay). The user must also enable "Message Content Intent" in the
+            // Discord Developer Portal → Bot → Privileged Gateway Intents, otherwise JDA's connect
+            // will throw IllegalArgumentException with a link to enable it.
+            GatewayIntent.MESSAGE_CONTENT
     );
 
     private final EnumSet<CacheFlag> cacheFlags = EnumSet.of(
@@ -345,6 +357,32 @@ public class ApiManager extends ListenerAdapter {
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
             DiscordSRV.debug(instance.getClass().getName() + "#" + method.getName() + " threw an error: " + cause);
+            String signature = instance.getClass().getName() + "#" + method.getName()
+                    + ":" + (cause == null ? "null" : cause.getClass().getName())
+                    + ":" + (cause == null ? "" : String.valueOf(cause.getMessage()));
+            boolean firstOccurrence = loggedExceptionSignatures.add(signature);
+            if (cause instanceof LinkageError) {
+                // LinkageError (NoSuchMethodError / NoClassDefFoundError / AbstractMethodError)
+                // means the downstream plugin was compiled against a different DiscordSRV / JDA
+                // ABI than what's loaded at runtime. The exception would otherwise repeat on every
+                // dispatched event — log it once with a user-friendly hint, then stay silent.
+                if (firstOccurrence) {
+                    String pluginName = resolvePluginName(instance.getClass());
+                    DiscordSRV.warning("API listener "
+                            + instance.getClass().getName() + "#" + method.getName()
+                            + " is incompatible with this DiscordSRV/JDA version — "
+                            + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+                    DiscordSRV.warning("This usually means " + (pluginName != null ? pluginName : "the listener's plugin")
+                            + " was compiled against an older DiscordSRV API. Update that plugin or"
+                            + " ask its author to rebuild against the current DiscordSRV.");
+                    DiscordSRV.warning("Suppressing further occurrences of this exact error to avoid log spam.");
+                }
+                return false;
+            }
+            if (!firstOccurrence) {
+                // identical exception already logged — keep the console readable on repeat events
+                return false;
+            }
             if (!logException(method.getClass(), cause)) {
                 DiscordSRV.error(instance.getClass().getName() + "#" + method.getName() + " threw", cause);
             }
@@ -358,6 +396,21 @@ public class ApiManager extends ListenerAdapter {
             );
         }
         return false;
+    }
+
+    /**
+     * Best-effort: walk back from the listener class to the owning Bukkit Plugin's name so the
+     * "this plugin needs to be rebuilt" warning can name the offender instead of just the class.
+     */
+    private String resolvePluginName(Class<?> clazz) {
+        try {
+            ClassLoader loader = clazz.getClassLoader();
+            if (loader instanceof PluginClassLoader) {
+                Plugin plugin = ((PluginClassLoader) loader).getPlugin();
+                if (plugin != null) return plugin.getName();
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 
     /**
