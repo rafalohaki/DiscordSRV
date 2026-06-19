@@ -64,6 +64,10 @@ public class DiscordChatListener extends ListenerAdapter {
         // only handle guild messages here; DMs are handled by DiscordAccountLinkListener
         if (!event.isFromGuild()) return;
 
+        // DiscordSRV only processes TextChannels. NewsChannel (announcement channels) and other
+        // guild channel types would throw IllegalStateException on asTextChannel() — filter early.
+        if (!event.isFromType(net.dv8tion.jda.api.entities.channel.ChannelType.TEXT)) return;
+
         // if message is from null author or self do not process
         if ((event.getMember() == null && !event.isWebhookMessage()) || DiscordUtil.getJda() == null || event.getAuthor().equals(DiscordUtil.getJda().getSelfUser()))
             return;
