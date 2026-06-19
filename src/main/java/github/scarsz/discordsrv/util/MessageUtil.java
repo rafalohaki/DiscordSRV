@@ -334,7 +334,7 @@ public class MessageUtil {
         Set<Audience> degradedAudiences = new HashSet<>();
         commandSenders.forEach(sender -> {
             Audience audience = getAudiences().sender(sender);
-            if (sender instanceof Player && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible((Player) sender)) {
+            if (sender instanceof Player p && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible(p)) {
                 degradedAudiences.add(audience);
             } else {
                 audiences.add(audience);

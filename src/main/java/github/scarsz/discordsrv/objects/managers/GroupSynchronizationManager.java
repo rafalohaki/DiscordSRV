@@ -156,7 +156,8 @@ public class GroupSynchronizationManager extends ListenerAdapter implements List
             return;
         }
 
-        if (!SchedulerUtil.isFolia() && Bukkit.isPrimaryThread()) throw new IllegalStateException("Resync cannot be run on the server main thread");
+        // On Folia, every tick thread is unsafe for blocking I/O — resync must run off-tick.
+        if (Bukkit.isPrimaryThread()) throw new IllegalStateException("Resync cannot be run on a tick thread");
 
         if (DiscordSRV.getPlugin().getAccountLinkManager() == null) {
             DiscordSRV.debug(Debug.GROUP_SYNC, "Tried to sync groups for player " + player.getName() + " but the AccountLinkManager wasn't initialized yet");

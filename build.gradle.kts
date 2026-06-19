@@ -16,15 +16,13 @@ plugins {
 group = "com.discordsrv"
 val minecraftVersion = project.properties["minecraftVersion"]!!.toString()
 val foliaApiVersion = project.properties["foliaVersion"]!!.toString()
-val targetJavaVersion = 21
+val targetJavaVersion = 25
 
 java {
     val javaVersion = JavaVersion.toVersion(targetJavaVersion)
     sourceCompatibility = javaVersion
     targetCompatibility = javaVersion
     toolchain {
-        // pin to Java 21 even if Gradle runs on a newer JVM; dynamicproxy annotation processor
-        // currently supports RELEASE_21 max and bails out under newer compilers
         languageVersion.set(JavaLanguageVersion.of(targetJavaVersion))
     }
 }
@@ -209,21 +207,21 @@ dependencies {
     compileOnly("org.apache.logging.log4j:log4j-core:2.20.0")
 
     // adventure, adventure-platform, MCDiscordReserializer
-    val adventureVersion = "4.25.0"
+    val adventureVersion = "4.26.1"
     api("net.kyori:adventure-api:${adventureVersion}")
     api("net.kyori:adventure-text-minimessage:${adventureVersion}")
     api("net.kyori:adventure-text-serializer-legacy:${adventureVersion}")
     api("net.kyori:adventure-text-serializer-plain:${adventureVersion}")
     api("net.kyori:adventure-text-serializer-gson:${adventureVersion}")
-    implementation("net.kyori:adventure-platform-bukkit:4.4.0")
+    implementation("net.kyori:adventure-platform-bukkit:4.4.1")
     api("dev.vankka:mcdiscordreserializer:${project.properties["mcDiscordReserializerVersion"]}")
 
     // Annotations
     compileOnlyApi("org.jetbrains:annotations:23.0.0")
 
     // Lombok
-    compileOnly("org.projectlombok:lombok:1.18.38")
-    annotationProcessor("org.projectlombok:lombok:1.18.38")
+    compileOnly("org.projectlombok:lombok:1.18.40")
+    annotationProcessor("org.projectlombok:lombok:1.18.40")
 
     // Apache Commons, guava
     implementation("commons-io:commons-io:2.11.0")

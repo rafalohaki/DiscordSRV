@@ -100,20 +100,17 @@ public class PluginUtil {
         if (commandMap != null) {
             for (Iterator<Map.Entry<String, Command>> it = commands.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, Command> entry = it.next();
-                if (entry.getValue() instanceof PluginCommand) {
-                    PluginCommand c = (PluginCommand) entry.getValue();
-                    if (c.getPlugin() == plugin) {
-                        c.unregister(commandMap);
-                        it.remove();
-                    }
+                if (entry.getValue() instanceof PluginCommand c && c.getPlugin() == plugin) {
+                    c.unregister(commandMap);
+                    it.remove();
                 }
             }
         }
 
         ClassLoader cl = plugin.getClass().getClassLoader();
-        if (cl instanceof URLClassLoader) {
+        if (cl instanceof URLClassLoader urlCl) {
             try {
-                ((URLClassLoader) cl).close();
+                urlCl.close();
             } catch (IOException ex) {
                 Logger.getLogger(PluginUtil.class.getName()).log(Level.SEVERE, null, ex);
             }

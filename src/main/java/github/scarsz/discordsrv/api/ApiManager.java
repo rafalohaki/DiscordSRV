@@ -231,22 +231,21 @@ public class ApiManager extends ListenerAdapter {
                 Throwable exception = error.getException();
                 Guild guild = error.getGuild();
 
-                if (!(exception instanceof ErrorResponseException)) {
+                if (!(exception instanceof ErrorResponseException ere)) {
                     DiscordSRV.warning("Unexpected error adding slash commands in server " + guild.getName() + ": " + exception.toString());
                     continue;
                 }
 
-                ErrorResponseException errorResponseException = (ErrorResponseException) exception;
-                ErrorResponse response = errorResponseException.getErrorResponse();
+                ErrorResponse response = ere.getErrorResponse();
                 if (response == ErrorResponse.MISSING_ACCESS) {
                     DiscordSRV.warning("Missing scopes in " + guild.getName() + " (" + guild.getId() + ")");
                 } else {
-                    DiscordSRV.warning("Failed to register slash commands in guild " + guild.getName() + " (" + guild.getId() + ") due to error: " + errorResponseException.getMeaning());
+                    DiscordSRV.warning("Failed to register slash commands in guild " + guild.getName() + " (" + guild.getId() + ") due to error: " + ere.getMeaning());
                 }
             }
             DiscordSRV.error("Until this is fixed, plugin slash commands won't work properly in the specified guilds.");
 
-            if (errors.stream().anyMatch(r -> r.getException() instanceof ErrorResponseException && ((ErrorResponseException) r.getException()).getErrorResponse() == ErrorResponse.MISSING_ACCESS)) {
+            if (errors.stream().anyMatch(r -> r.getException() instanceof ErrorResponseException ere && ere.getErrorResponse() == ErrorResponse.MISSING_ACCESS)) {
                 String invite = "https://scarsz.me/authorize#";
                 try {
                     invite += DiscordSRV.getPlugin().getJda().getSelfUser().getApplicationId();
@@ -361,7 +360,7 @@ public class ApiManager extends ListenerAdapter {
                     + ":" + (cause == null ? "null" : cause.getClass().getName())
                     + ":" + (cause == null ? "" : String.valueOf(cause.getMessage()));
             boolean firstOccurrence = loggedExceptionSignatures.add(signature);
-            if (cause instanceof LinkageError) {
+            if (cause instanceof LinkageError le) {
                 // LinkageError (NoSuchMethodError / NoClassDefFoundError / AbstractMethodError)
                 // means the downstream plugin was compiled against a different DiscordSRV / JDA
                 // ABI than what's loaded at runtime. The exception would otherwise repeat on every
@@ -371,7 +370,7 @@ public class ApiManager extends ListenerAdapter {
                     DiscordSRV.warning("API listener "
                             + instance.getClass().getName() + "#" + method.getName()
                             + " is incompatible with this DiscordSRV/JDA version — "
-                            + cause.getClass().getSimpleName() + ": " + cause.getMessage());
+                            + le.getClass().getSimpleName() + ": " + le.getMessage());
                     DiscordSRV.warning("This usually means " + (pluginName != null ? pluginName : "the listener's plugin")
                             + " was compiled against an older DiscordSRV API. Update that plugin or"
                             + " ask its author to rebuild against the current DiscordSRV.");
@@ -405,8 +404,8 @@ public class ApiManager extends ListenerAdapter {
     private String resolvePluginName(Class<?> clazz) {
         try {
             ClassLoader loader = clazz.getClassLoader();
-            if (loader instanceof PluginClassLoader) {
-                Plugin plugin = ((PluginClassLoader) loader).getPlugin();
+            if (loader instanceof PluginClassLoader pcl) {
+                Plugin plugin = pcl.getPlugin();
                 if (plugin != null) return plugin.getName();
             }
         } catch (Throwable ignored) {}
@@ -422,8 +421,8 @@ public class ApiManager extends ListenerAdapter {
     private boolean logException(Class<?> offendingClass, Throwable throwable) {
         try {
             ClassLoader classLoader = offendingClass.getClassLoader();
-            if (classLoader instanceof PluginClassLoader) {
-                Plugin owner = ((PluginClassLoader) classLoader).getPlugin();
+            if (classLoader instanceof PluginClassLoader pcl) {
+                Plugin owner = pcl.getPlugin();
                 DiscordSRV.logThrowable(throwable, owner.getLogger()::severe);
                 return true;
             }

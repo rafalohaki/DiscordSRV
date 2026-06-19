@@ -147,8 +147,8 @@ public class WebhookUtil {
     public static void deliverMessage(TextChannel channel, OfflinePlayer player, String displayName, String message, Collection<? extends MessageEmbed> embeds, Map<String, InputStream> attachments, Collection<? extends ActionRow> interactions) {
         SchedulerUtil.runTaskAsynchronously(DiscordSRV.getPlugin(), () -> {
             String avatarUrl;
-            if (player instanceof Player) {
-                avatarUrl = DiscordSRV.getAvatarUrl((Player) player);
+            if (player instanceof Player p) {
+                avatarUrl = DiscordSRV.getAvatarUrl(p);
             } else {
                 avatarUrl = DiscordSRV.getAvatarUrl(player.getName(), player.getUniqueId());
             }

@@ -47,6 +47,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -70,21 +71,27 @@ public class DiscordUtil {
      */
     private static java.util.function.Consumer<Throwable> queueError(String operation) {
         return error -> {
-            if (error instanceof PermissionException) {
-                PermissionException pe = (PermissionException) error;
-                if (pe.getPermission() != Permission.UNKNOWN) {
-                    DiscordSRV.warning(operation + " failed: missing permission \"" + pe.getPermission().getName() + "\"");
-                } else {
-                    DiscordSRV.warning(operation + " failed: " + pe.getMessage());
+            // CancellationException is thrown by JDA when a RestAction is cancelled during shutdown
+            // (jda.shutdown() cancels all pending requests). It's expected during disable — don't log it.
+            if (error instanceof CancellationException) {
+                if (DiscordSRV.shuttingDown) {
+                    DiscordSRV.debug(operation + " cancelled during shutdown — expected, ignoring");
+                    return;
                 }
-            } else if (error instanceof net.dv8tion.jda.api.exceptions.ErrorResponseException) {
-                net.dv8tion.jda.api.exceptions.ErrorResponseException ere =
-                        (net.dv8tion.jda.api.exceptions.ErrorResponseException) error;
-                DiscordSRV.warning(operation + " failed: Discord returned " + ere.getErrorCode() + " " + ere.getMeaning());
-            } else if (error instanceof net.dv8tion.jda.api.exceptions.RateLimitedException) {
-                DiscordSRV.warning(operation + " was rate-limited by Discord — will retry on next cycle");
-            } else {
-                DiscordSRV.warning(operation + " failed: " + error.getClass().getSimpleName() + ": " + error.getMessage());
+                DiscordSRV.debug(operation + " was cancelled: " + error.getMessage());
+                return;
+            }
+            switch (error) {
+                case PermissionException pe when pe.getPermission() != Permission.UNKNOWN ->
+                        DiscordSRV.warning(operation + " failed: missing permission \"" + pe.getPermission().getName() + "\"");
+                case PermissionException pe ->
+                        DiscordSRV.warning(operation + " failed: " + pe.getMessage());
+                case net.dv8tion.jda.api.exceptions.ErrorResponseException ere ->
+                        DiscordSRV.warning(operation + " failed: Discord returned " + ere.getErrorCode() + " " + ere.getMeaning());
+                case net.dv8tion.jda.api.exceptions.RateLimitedException _ ->
+                        DiscordSRV.warning(operation + " was rate-limited by Discord — will retry on next cycle");
+                default ->
+                        DiscordSRV.warning(operation + " failed: " + error.getClass().getSimpleName() + ": " + error.getMessage());
             }
         };
     }
@@ -586,11 +593,8 @@ public class DiscordUtil {
                 errorCallback.accept(e);
                 return;
             }
-            if (e instanceof PermissionException) {
-                PermissionException pe = (PermissionException) e;
-                if (pe.getPermission() != Permission.UNKNOWN) {
-                    DiscordSRV.warning("Could not set topic of channel " + channel + " because the bot does not have the \"" + pe.getPermission().getName() + "\" permission");
-                }
+            if (e instanceof PermissionException pe && pe.getPermission() != Permission.UNKNOWN) {
+                DiscordSRV.warning("Could not set topic of channel " + channel + " because the bot does not have the \"" + pe.getPermission().getName() + "\" permission");
             } else {
                 DiscordSRV.warning("Could not set topic of channel " + channel + " because \"" + e.getMessage() + "\"");
             }
@@ -614,8 +618,7 @@ public class DiscordUtil {
                 );
             }
         } catch (Exception e) {
-            if (e instanceof PermissionException) {
-                final PermissionException pe = (PermissionException) e;
+            if (e instanceof PermissionException pe) {
                 if (pe.getPermission() != Permission.UNKNOWN) {
                     DiscordSRV.warning(String.format("Could not rename channel \"%s\" because the bot does not have the \"%s\" permission.", channel.getName(), pe.getPermission().getName()));
                 } else DiscordSRV.warning(String.format("Received an unknown permission exception when trying to rename channel \"%s\".", channel.getName()));

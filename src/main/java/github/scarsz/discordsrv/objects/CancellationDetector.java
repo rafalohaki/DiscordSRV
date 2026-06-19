@@ -207,7 +207,7 @@ public class CancellationDetector<E extends Cancellable> {
         @SuppressWarnings("unchecked")
         @Override
         public void callEvent(@NotNull Event event) throws EventException {
-            boolean cancelled = event instanceof Cancellable && ((Cancellable) event).isCancelled();
+            boolean cancelled = event instanceof Cancellable c && c.isCancelled();
             boolean wasCancelled = detector.cancelled.get();
 
             if (cancelled && !wasCancelled && listener != null) {

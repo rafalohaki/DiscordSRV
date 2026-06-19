@@ -42,7 +42,6 @@ import github.scarsz.discordsrv.listeners.*;
 import github.scarsz.discordsrv.modules.alerts.AlertListener;
 import github.scarsz.discordsrv.modules.requirelink.RequireLinkModule;
 import github.scarsz.discordsrv.objects.CancellationDetector;
-import github.scarsz.discordsrv.objects.Lag;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.log4j.JdaFilter;
 import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
@@ -108,7 +107,6 @@ import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitWorker;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.NotNull;
 import org.minidns.DnsClient;
@@ -786,40 +784,43 @@ public class DiscordSRV extends JavaPlugin {
             if (shuttingDown) {
                 Throwable t = throwable;
                 while (t != null) {
-                    if (t instanceof InterruptedException || t instanceof InterruptedIOException) {
-                        // Ignore interrupts when shutting down
+                    if (t instanceof InterruptedException || t instanceof InterruptedIOException
+                            || t instanceof java.util.concurrent.CancellationException) {
+                        // Ignore interrupts/cancellations when shutting down — JDA cancels pending
+                        // RestActions during jda.shutdown(), which is expected behavior.
                         return;
                     }
                     t = t.getCause();
                 }
             }
 
-            if (throwable instanceof HierarchyException) {
-                DiscordSRV.error("DiscordSRV failed to perform an action due to being lower in hierarchy than the action's target: " + throwable.getMessage());
-            } else if (throwable instanceof PermissionException) {
-                DiscordSRV.error("DiscordSRV failed to perform an action because the bot is missing the " + ((PermissionException) throwable).getPermission().name() + " permission: " + throwable.getMessage());
-            } else if (throwable instanceof RateLimitedException) {
-                DiscordSRV.error("DiscordSRV encountered rate limiting. If you are running multiple DiscordSRV instances on the same token, this is considered API abuse and risks your server being IP banned from Discord. Make one bot per server.");
-            } else if (throwable instanceof ErrorResponseException) {
-                if (((ErrorResponseException) throwable).getErrorCode() == 50013) {
+            switch (throwable) {
+                case HierarchyException _ ->
+                        DiscordSRV.error("DiscordSRV failed to perform an action due to being lower in hierarchy than the action's target: " + throwable.getMessage());
+                case PermissionException pe ->
+                        DiscordSRV.error("DiscordSRV failed to perform an action because the bot is missing the " + pe.getPermission().name() + " permission: " + throwable.getMessage());
+                case RateLimitedException _ ->
+                        DiscordSRV.error("DiscordSRV encountered rate limiting. If you are running multiple DiscordSRV instances on the same token, this is considered API abuse and risks your server being IP banned from Discord. Make one bot per server.");
+                case ErrorResponseException ere when ere.getErrorCode() == 50013 -> {
                     // Missing Permissions, too bad we don't know which one
                     DiscordSRV.error("DiscordSRV received a permission error response (50013) from Discord. Unfortunately the specific error isn't provided in that response.");
                     DiscordSRV.debug(Debug.JDA_REST_ACTIONS, throwable.getCause());
                     return;
                 }
-
-                Throwable cause = throwable.getCause();
-                if (cause instanceof InterruptedIOException && jda != null) {
-                    JDA.Status status = jda.getStatus();
-                    if (status == JDA.Status.SHUTDOWN || status == JDA.Status.SHUTTING_DOWN) {
-                        // Ignore InterruptedIOException's during shutdown, we can't hold up the server from stopping forever,
-                        // so some requests are cancelled during shutdown. Logging errors for those request failures isn't important.
-                        return;
+                case ErrorResponseException _ -> {
+                    Throwable cause = throwable.getCause();
+                    if (cause instanceof InterruptedIOException && jda != null) {
+                        JDA.Status status = jda.getStatus();
+                        if (status == JDA.Status.SHUTDOWN || status == JDA.Status.SHUTTING_DOWN) {
+                            // Ignore InterruptedIOException's during shutdown, we can't hold up the server from stopping forever,
+                            // so some requests are cancelled during shutdown. Logging errors for those request failures isn't important.
+                            return;
+                        }
                     }
+                    DiscordSRV.error("DiscordSRV encountered an unknown Discord error: " + throwable.getMessage());
                 }
-                DiscordSRV.error("DiscordSRV encountered an unknown Discord error: " + throwable.getMessage());
-            } else {
-                DiscordSRV.error("DiscordSRV encountered an unknown exception: " + throwable.getMessage() + "\n" + ExceptionUtils.getStackTrace(throwable));
+                default ->
+                        DiscordSRV.error("DiscordSRV encountered an unknown exception: " + throwable.getMessage() + "\n" + ExceptionUtils.getStackTrace(throwable));
             }
 
             if (Debug.JDA_REST_ACTIONS.isVisible()) {
@@ -920,7 +921,7 @@ public class DiscordSRV extends JavaPlugin {
             invalidBotToken = true;
             DiscordDisconnectListener.printDisconnectMessage(true, "The bot token is invalid");
         } catch (Exception e) {
-            if (e instanceof IllegalStateException && "Was shutdown trying to await status".equals(e.getMessage())) {
+            if (e instanceof IllegalStateException ise && "Was shutdown trying to await status".equals(ise.getMessage())) {
                 // already logged by JDA
                 return;
             }
@@ -1013,16 +1014,8 @@ public class DiscordSRV extends JavaPlugin {
         // extra enabled check before doing bukkit api stuff
         if (!isEnabled()) return;
 
-        // start server watchdog
-        if (!SchedulerUtil.isFolia()) { // watchdog isn't useful on folia
-            if (serverWatchdog != null && serverWatchdog.getState() != Thread.State.NEW) serverWatchdog.interrupt();
-            serverWatchdog = new ServerWatchdog();
-            serverWatchdog.start();
-        }
-
-        // start lag (tps) monitor
-        if (!SchedulerUtil.isFolia()) // cannot monitor global lag on folia
-            Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(this, new Lag(), 100L, 1L);
+        // Watchdog and global TPS monitor are not useful on Folia — each region ticks independently
+        // and there is no single "main thread" to watch. Skipped on Folia-only deployments.
 
         // cancellation detector
         reloadCancellationDetector();
@@ -1410,15 +1403,8 @@ public class DiscordSRV extends JavaPlugin {
 
                 // shutdown scheduler tasks
                 SchedulerUtil.cancelTasks(this);
-                if (!SchedulerUtil.isFolia()) { // not implemented yet on folia
-                    for (BukkitWorker activeWorker : Bukkit.getScheduler().getActiveWorkers()) {
-                        if (activeWorker.getOwner().equals(this)) {
-                            List<String> stackTrace = Arrays.stream(activeWorker.getThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
-                            warning("a DiscordSRV scheduler task still active during onDisable: " + stackTrace.remove(0));
-                            debug(stackTrace);
-                        }
-                    }
-                }
+                // Folia does not expose Bukkit.getScheduler().getActiveWorkers() — no equivalent
+                // diagnostic is available. SchedulerUtil.cancelTasks cancels all plugin tasks.
 
                 // stop alerts
                 if (alertListener != null) alertListener.unregister();

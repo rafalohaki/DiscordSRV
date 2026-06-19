@@ -92,8 +92,7 @@ public class ChannelTopicUpdater extends Thread {
                 channel,
                 topic,
                 error -> {
-                    if (error instanceof PermissionException) {
-                        PermissionException pe = (PermissionException) error;
+                    if (error instanceof PermissionException pe) {
                         if (failedFlag.compareAndSet(false, true)) {
                             String permName = pe.getPermission() != Permission.UNKNOWN ? pe.getPermission().getName() : pe.getMessage();
                             DiscordSRV.warning("Topic updater: bot lacks permission \"" + permName + "\" on #"

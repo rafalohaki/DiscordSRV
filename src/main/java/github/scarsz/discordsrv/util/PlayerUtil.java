@@ -162,10 +162,8 @@ public class PlayerUtil {
     @SuppressWarnings("deprecation")
     public static boolean isVanished(Player player) {
         for (PluginHook pluginHook : DiscordSRV.getPlugin().getPluginHooks()) {
-            if (pluginHook instanceof VanishHook) {
-                if (((VanishHook) pluginHook).isVanished(player)) {
-                    return true;
-                }
+            if (pluginHook instanceof VanishHook hook && hook.isVanished(player)) {
+                return true;
             }
         }
 
@@ -173,13 +171,8 @@ public class PlayerUtil {
     }
 
     public static int getPing(Player player) {
-        try {
-            Object entityPlayer = player.getClass().getMethod("getHandle").invoke(player);
-            return (int) entityPlayer.getClass().getField("ping").get(entityPlayer);
-        } catch (Exception e) {
-            DiscordSRV.error(e);
-            return -1;
-        }
+        // Player.getPing() is a stable Paper/Folia API since 1.17.1 — no NMS reflection needed.
+        return player.getPing();
     }
 
     private static final List<Character> VANILLA_TARGET_SELECTORS = Arrays.asList('p', 'r', 'a', 'e', 's');

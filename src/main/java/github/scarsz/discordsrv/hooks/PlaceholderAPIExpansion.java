@@ -70,7 +70,7 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
         AccountLinkManager accountLinkManager = DiscordSRV.getPlugin().getAccountLinkManager();
         Supplier<Set<String>> linkedAccounts = () -> {
             // On Folia every tick thread is unsafe for blocking I/O, equivalent to Bukkit's main thread.
-            boolean unsafeForBlocking = SchedulerUtil.isFolia() || Bukkit.isPrimaryThread();
+            boolean unsafeForBlocking = Bukkit.isPrimaryThread();
             if (accountLinkManager instanceof JdbcAccountLinkManager && unsafeForBlocking) {
                 // not permitted
                 long currentTime = System.currentTimeMillis();
@@ -148,7 +148,7 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
         if (player == null) return "";
 
         // On Folia every tick thread is unsafe for blocking I/O — fall back to the cache there too.
-        String userId = (SchedulerUtil.isFolia() || Bukkit.isPrimaryThread())
+        String userId = Bukkit.isPrimaryThread()
                         ? accountLinkManager.getDiscordIdFromCache(player.getUniqueId())
                         : accountLinkManager.getDiscordId(player.getUniqueId());
         switch (identifier) {

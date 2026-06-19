@@ -410,16 +410,16 @@ public class AlertListener implements Listener, EventListener {
     }
 
     private String getEventClassName(Object event) {
-        String className = event instanceof String ? (String) event : event.getClass().getName();
+        String className = event instanceof String s ? s : event.getClass().getName();
         return className.replace("github.scarsz.discordsrv.dependencies.jda", "net.".concat("dv8tion.jda"));
     }
 
     private String getEventName(Object event) {
-        return event instanceof Event ? ((Event) event).getEventName() : event.getClass().getSimpleName();
+        return event instanceof Event e ? e.getEventName() : event.getClass().getSimpleName();
     }
 
     private void process(Object event, Dynamic alert, Set<String> triggers, int alertIndex) {
-        Player player = event instanceof PlayerEvent ? ((PlayerEvent) event).getPlayer() : null;
+        Player player = event instanceof PlayerEvent pe ? pe.getPlayer() : null;
         if (player == null) {
             // some things that do deal with players are not properly marked as a player event
             // this will check to see if a #getPlayer() method exists on events coming through
@@ -468,7 +468,7 @@ public class AlertListener implements Listener, EventListener {
             }
 
             // make sure alert should run even if event is cancelled
-            if (event instanceof Cancellable && ((Cancellable) event).isCancelled()) {
+            if (event instanceof Cancellable c && c.isCancelled()) {
                 Dynamic ignoreCancelledDynamic = alert.get("IgnoreCancelled");
                 boolean ignoreCancelled = ignoreCancelledDynamic.isPresent() ? ignoreCancelledDynamic.as(Boolean.class) : true;
                 if (ignoreCancelled) {
