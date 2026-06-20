@@ -43,6 +43,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -212,6 +213,11 @@ public class VentureChatHook implements ChatHook {
                 WebhookUtil.deliverMessage(destinationChannel, webhookUsername, DiscordSRV.getAvatarUrl(username, uuid), message, (Collection<? extends MessageEmbed>) null);
             }
         }
+    }
+
+    @Override
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        return null;
     }
 
     @Override

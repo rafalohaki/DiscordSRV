@@ -104,12 +104,12 @@ public final class ChannelRouter {
     }
 
     public String getOptionalChannel(String name) {
-        String channelId = DiscordSRV.config().getString("DiscordChatChannel" + name);
-        return StringUtils.isNotBlank(channelId) ? channelId : null;
+        return channels.containsKey(name)
+                ? name
+                : getMainChatChannel();
     }
 
     public TextChannel getOptionalTextChannel(String gameChannel) {
-        String channelId = getOptionalChannel(gameChannel);
-        return channelId != null ? DiscordUtil.getTextChannelById(channelId) : null;
+        return getDestinationTextChannelForGameChannelName(getOptionalChannel(gameChannel));
     }
 }

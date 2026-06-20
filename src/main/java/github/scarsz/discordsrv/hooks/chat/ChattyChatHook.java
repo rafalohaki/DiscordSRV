@@ -31,6 +31,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 import ru.mrbrikster.chatty.api.ChattyApi;
 import ru.mrbrikster.chatty.api.chats.Chat;
 import ru.mrbrikster.chatty.api.events.ChattyMessageEvent;
@@ -44,6 +45,11 @@ public class ChattyChatHook implements ChatHook {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChattyMessage(ChattyMessageEvent event) {
         DiscordSRV.getPlugin().processChatMessage(event.getPlayer(), event.getMessage(), event.getChat().getName(), false, event);
+    }
+
+    @Override
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        return null;
     }
 
     @Override

@@ -45,6 +45,7 @@ import github.scarsz.discordsrv.objects.CancellationDetector;
 import github.scarsz.discordsrv.objects.ChannelRouter;
 import github.scarsz.discordsrv.objects.AvatarUrlResolver;
 import github.scarsz.discordsrv.objects.ChatMessageProcessor;
+import github.scarsz.discordsrv.objects.ConfigReloadHelper;
 import github.scarsz.discordsrv.objects.JoinLeaveMessageSender;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.PluginLogger;
@@ -249,24 +250,16 @@ public class DiscordSRV extends JavaPlugin {
     }
 
     public void reloadChannels() {
-        channels.clear();
-        config().dget("Channels").children().forEach(dynamic ->
-                this.channels.put(dynamic.key().convert().intoString(), dynamic.convert().intoString()));
+        ConfigReloadHelper.reloadMapFromConfig(channels, "Channels", null, channels::put);
     }
     public void reloadRoleAliases() {
-        roleAliases.clear();
-        config().dget("DiscordChatChannelRoleAliases").children().forEach(dynamic ->
-                this.roleAliases.put(dynamic.key().convert().intoString().toLowerCase(), dynamic.convert().intoString()));
+        ConfigReloadHelper.reloadMapFromConfig(roleAliases, "DiscordChatChannelRoleAliases", String::toLowerCase, roleAliases::put);
     }
     public void reloadRegexes() {
-        consoleRegexes.clear();
-        loadRegexesFromConfig(config().dget("DiscordConsoleChannelFilters"), consoleRegexes);
-        gameRegexes.clear();
-        loadRegexesFromConfig(config().dget("DiscordChatChannelGameFilters"), gameRegexes);
-        discordRegexes.clear();
-        loadRegexesFromConfig(config().dget("DiscordChatChannelDiscordFilters"), discordRegexes);
-        webhookUsernameRegexes.clear();
-        loadRegexesFromConfig(config().dget("Experiment_WebhookChatMessageUsernameFilters"), webhookUsernameRegexes);
+        ConfigReloadHelper.reloadRegexMap(consoleRegexes, "DiscordConsoleChannelFilters");
+        ConfigReloadHelper.reloadRegexMap(gameRegexes, "DiscordChatChannelGameFilters");
+        ConfigReloadHelper.reloadRegexMap(discordRegexes, "DiscordChatChannelDiscordFilters");
+        ConfigReloadHelper.reloadRegexMap(webhookUsernameRegexes, "Experiment_WebhookChatMessageUsernameFilters");
     }
     private void loadRegexesFromConfig(final Dynamic dynamic, final Map<Pattern, String> map) {
         dynamic.children().forEach(d -> {

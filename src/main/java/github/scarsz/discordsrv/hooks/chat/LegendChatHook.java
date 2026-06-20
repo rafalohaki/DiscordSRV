@@ -33,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
 public class LegendChatHook implements ChatHook {
 
@@ -42,6 +43,11 @@ public class LegendChatHook implements ChatHook {
         if (StringUtils.isBlank(event.getMessage())) return;
 
         DiscordSRV.getPlugin().processChatMessage(event.getSender().getPlayer(), event.getMessage(), event.getChannel().getName(), event.isCancelled(), event);
+    }
+
+    @Override
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        return null;
     }
 
     @Override

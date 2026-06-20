@@ -24,9 +24,7 @@ import br.com.finalcraft.fancychat.api.FancyChatApi;
 import br.com.finalcraft.fancychat.api.FancyChatSendChannelMessageEvent;
 import br.com.finalcraft.fancychat.config.fancychat.FancyChannel;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
-import github.scarsz.discordsrv.util.PlayerUtil;
 import github.scarsz.discordsrv.util.PluginUtil;
 import net.kyori.adventure.text.Component;
 import org.apache.commons.lang3.StringUtils;
@@ -34,15 +32,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
 public class FancyChatHook implements ChatHook {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onMessage(FancyChatSendChannelMessageEvent event) {
-        // make sure chat channel is registered with a destination
         if (event.getChannel() == null) return;
-
-        // make sure message isn't just blank
         if (StringUtils.isBlank(event.getMessage())) return;
 
         Player sender = null;
@@ -52,20 +48,24 @@ public class FancyChatHook implements ChatHook {
     }
 
     @Override
-    public void broadcastMessageToChannel(String channel, Component message) {
-        FancyChannel fancyChannel = FancyChatApi.getChannel(channel);
-        if (fancyChannel == null) return; // no suitable channel found
-        String legacy = MessageUtil.toLegacy(message);
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        FancyChannel fancyChannel = FancyChatApi.getChannel(channelName);
+        if (fancyChannel == null) return null;
+        return new ChannelInfo(
+                fancyChannel.getName(),
+                fancyChannel.getAlias(),
+                "",
+                fancyChannel.getPlayersOnThisChannel()
+        );
+    }
 
-        String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()
-                .replace("%channelcolor%", "")
-                .replace("%channelname%", fancyChannel.getName())
-                .replace("%channelnickname%", fancyChannel.getAlias())
-                .replace("%message%", legacy);
-
-        String translatedMessage = MessageUtil.translateLegacy(plainMessage);
-        FancyChatApi.sendMessage(translatedMessage, fancyChannel);
-        PlayerUtil.notifyPlayersOfMentions(player -> fancyChannel.getPlayersOnThisChannel().contains(player), legacy);
+    @Override
+    public void deliverToRecipients(java.util.Collection<? extends Player> recipients, String formattedMessage) {
+        // FancyChat has its own send API — use it instead of per-player sendMessage
+        // Resolve the channel from the first recipient's context is not reliable;
+        // the default broadcastMessageToChannel already formatted the message,
+        // so we fall back to the default per-player delivery.
+        ChatHook.super.deliverToRecipients(recipients, formattedMessage);
     }
 
     @Override

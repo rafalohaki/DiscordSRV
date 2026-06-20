@@ -37,6 +37,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.stream.Collectors;
 
@@ -51,6 +52,11 @@ public class LunaChatHook implements ChatHook {
         Player player = (event.getMember() != null && event.getMember() instanceof ChannelMemberPlayer) ? ((ChannelMemberPlayer) event.getMember()).getPlayer() : null;
 
         DiscordSRV.getPlugin().processChatMessage(player, event.getNgMaskedMessage(), event.getChannel().getName(), false, event);
+    }
+
+    @Override
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        return null;
     }
 
     @Override

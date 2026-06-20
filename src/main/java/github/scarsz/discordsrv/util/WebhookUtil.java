@@ -22,6 +22,7 @@ package github.scarsz.discordsrv.util;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.objects.WebhookMessage;
 import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
@@ -270,6 +271,118 @@ public class WebhookUtil {
 
     public static void editMessage(TextChannel channel, String editMessageId, String message, Collection<? extends MessageEmbed> embeds, Map<String, InputStream> attachments, Collection<? extends ActionRow> interactions, boolean scheduleAsync) {
         executeWebhook(channel, null, null, editMessageId, message, embeds, attachments, interactions, true, scheduleAsync);
+    }
+
+    // ─── Modern WebhookMessage-based API ───────────────────────────────────
+
+    /**
+     * Delivers a webhook message with pre-resolved name/avatar/content.
+     * Use {@link WebhookMessage#builder(TextChannel)} to construct.
+     */
+    public static void deliver(WebhookMessage msg) {
+        executeWebhook(
+                msg.channel(),
+                msg.webhookName(),
+                msg.webhookAvatarUrl(),
+                msg.editMessageId(),
+                msg.message(),
+                msg.embeds(),
+                msg.attachments(),
+                msg.interactions(),
+                true,
+                msg.scheduleAsync()
+        );
+    }
+
+    /**
+     * Delivers a webhook message from a Minecraft player — resolves avatar URL,
+     * applies username/message format placeholders, runs regex filters, and
+     * handles account-link Discord name/avatar override.
+     *
+     * <p>The {@link WebhookMessage#webhookName()} and {@link WebhookMessage#message()}
+     * are treated as raw; this method applies the configured format strings.
+     * Use {@link #deliver(WebhookMessage)} for pre-formatted messages.
+     *
+     * @param player      the offline player (may be online)
+     * @param displayName display name for placeholder substitution
+     * @param rawMessage  raw message content (before format placeholder substitution)
+     */
+    public static void deliverFromPlayer(
+            org.bukkit.OfflinePlayer player,
+            String displayName,
+            String rawMessage,
+            WebhookMessage msg
+    ) {
+        SchedulerUtil.runTaskAsynchronously(DiscordSRV.getPlugin(), () -> {
+            String avatarUrl;
+            if (player instanceof Player p) {
+                avatarUrl = DiscordSRV.getAvatarUrl(p);
+            } else {
+                avatarUrl = DiscordSRV.getAvatarUrl(player.getName(), player.getUniqueId());
+            }
+
+            String username = DiscordSRV.config().getString("Experiment_WebhookChatMessageUsernameFormat")
+                    .replace("%displayname%", displayName)
+                    .replace("%username%", String.valueOf(player.getName()));
+            String chatMessage = DiscordSRV.config().getString("Experiment_WebhookChatMessageFormat")
+                    .replace("%displayname%", displayName)
+                    .replace("%username%", player.getName())
+                    .replace("%message%", rawMessage.replace("[", "\\["));
+            chatMessage = PlaceholderUtil.replacePlaceholdersToDiscord(chatMessage, player);
+            chatMessage = DiscordUtil.translateEmotes(chatMessage, msg.channel().getGuild());
+            username = PlaceholderUtil.replacePlaceholdersToDiscord(username, player);
+            username = MessageUtil.strip(username);
+
+            for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getGameRegexes().entrySet()) {
+                username = entry.getKey().matcher(username).replaceAll(Matcher.quoteReplacement(entry.getValue()));
+                chatMessage = entry.getKey().matcher(chatMessage).replaceAll(Matcher.quoteReplacement(entry.getValue()));
+
+                if (StringUtils.isBlank(username)) {
+                    DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not processing Minecraft message because the webhook username was cleared by a filter: " + entry.getKey().pattern());
+                    return;
+                }
+
+                if (StringUtils.isBlank(chatMessage)) {
+                    DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not processing Minecraft message because the webhook content was cleared by a filter: " + entry.getKey().pattern());
+                    return;
+                }
+            }
+
+            String userId = DiscordSRV.getPlugin().getAccountLinkManager().getDiscordId(player.getUniqueId());
+            if (userId != null) {
+                Member member = DiscordUtil.getMemberById(userId);
+                username = username
+                        .replace("%discordname%", member != null ? member.getEffectiveName() : "")
+                        .replace("%discordusername%", member != null ? member.getUser().getName() : "");
+                if (member != null) {
+                    if (DiscordSRV.config().getBoolean("Experiment_WebhookChatMessageAvatarFromDiscord"))
+                        avatarUrl = member.getUser().getEffectiveAvatarUrl();
+                    if (DiscordSRV.config().getBoolean("Experiment_WebhookChatMessageUsernameFromDiscord"))
+                        username = member.getEffectiveName();
+                }
+            } else {
+                username = username
+                        .replace("%discordname%", "")
+                        .replace("%discordusername%", "");
+            }
+
+            if (username.length() > 80) {
+                DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "The webhook username in " + player.getName() + "'s message was too long! Reducing to 80 characters");
+                username = username.substring(0, 80);
+            }
+
+            // Build the final message with resolved name/avatar/content
+            WebhookMessage resolved = WebhookMessage.builder(msg.channel())
+                    .webhookName(username)
+                    .webhookAvatarUrl(avatarUrl)
+                    .message(chatMessage)
+                    .embeds(msg.embeds())
+                    .attachments(msg.attachments())
+                    .interactions(msg.interactions())
+                    .scheduleAsync(false) // already on async scheduler
+                    .build();
+            deliver(resolved);
+        });
     }
 
     private static void executeWebhook(TextChannel channel, String webhookName, String webhookAvatarUrl, String editMessageId, String message, Collection<? extends MessageEmbed> embeds, Map<String, InputStream> attachments, Collection<? extends ActionRow> interactions, boolean allowSecondAttempt, boolean scheduleAsync) {

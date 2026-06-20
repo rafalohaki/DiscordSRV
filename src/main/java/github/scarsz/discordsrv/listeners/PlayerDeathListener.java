@@ -25,6 +25,7 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.api.events.DeathMessagePostProcessEvent;
 import github.scarsz.discordsrv.api.events.DeathMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
+import github.scarsz.discordsrv.objects.MessageTranslator;
 import github.scarsz.discordsrv.util.*;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
@@ -83,35 +84,16 @@ public class PlayerDeathListener implements Listener {
         if (messageFormat == null) return;
 
         String finalDeathMessage = StringUtils.isNotBlank(deathMessage) ? deathMessage : "";
-        String avatarUrl = DiscordSRV.getAvatarUrl(event.getEntity());
-        String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = DiscordSRV.getPlugin().getMainGuild() != null ? DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName() : DiscordUtil.getJda().getSelfUser().getName();
-        String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
-
         TextChannel destinationChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName(channelName);
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%username%", needsEscape ? DiscordUtil.escapeMarkdown(player.getName()) : player.getName())
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", player.getName())
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%world%", player.getWorld().getName())
-                    .replace("%deathmessage%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(finalDeathMessage) : finalDeathMessage))
-                    .replace("%deathmessagenoescapes%", MessageUtil.strip(finalDeathMessage))
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            if (destinationChannel != null) content = DiscordUtil.translateEmotes(content, destinationChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-        MessageCreateData discordMessage = DiscordSRV.translateMessage(messageFormat, translator);
+        var translator = MessageTranslator.forPlayer(player, destinationChannel)
+                .withPlaceholder("deathmessage", finalDeathMessage)
+                .withPlaceholder("deathmessagenoescapes", MessageUtil.strip(finalDeathMessage));
+        BiFunction<String, Boolean, String> translatorFn = translator.toFunction();
+        MessageCreateData discordMessage = DiscordSRV.translateMessage(messageFormat, translatorFn);
         if (discordMessage == null) return;
 
-        String webhookName = translator.apply(messageFormat.getWebhookName(), false);
-        String webhookAvatarUrl = translator.apply(messageFormat.getWebhookAvatarUrl(), false);
+        String webhookName = translatorFn.apply(messageFormat.getWebhookName(), false);
+        String webhookAvatarUrl = translatorFn.apply(messageFormat.getWebhookAvatarUrl(), false);
 
         if (DiscordSRV.getLength(discordMessage) < 3) {
             DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not sending death message, because it's less than three characters long. Message: " + messageFormat);

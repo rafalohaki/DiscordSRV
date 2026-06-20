@@ -424,11 +424,7 @@ public class DiscordUtil {
             if (allowMassPing) action = action.setAllowedMentions(EnumSet.allOf(Message.MentionType.class));
             sentMessage = action.complete();
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not send message in channel " + channel + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not send message in channel " + channel + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("send message in channel " + channel, e);
             return null;
         }
         DiscordSRV.api.callEvent(new DiscordGuildMessageSentEvent(getJda(), sentMessage));
@@ -535,13 +531,9 @@ public class DiscordUtil {
                 if (consumer != null) consumer.accept(sentMessage);
             }, throwable -> DiscordSRV.error("Failed to send message to channel " + channel + ": " + throwable.getMessage()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not send message in channel " + channel + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not send message in channel " + channel + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("send message in channel " + channel, e);
         } catch (IllegalStateException e) {
-            DiscordSRV.error("Could not send message to channel " + channel + ": " + e.getMessage());
+            DiscordExceptionHandler.handleIllegalState("send message to channel " + channel, e);
         }
     }
 
@@ -593,11 +585,7 @@ public class DiscordUtil {
                 errorCallback.accept(e);
                 return;
             }
-            if (e instanceof PermissionException pe && pe.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not set topic of channel " + channel + " because the bot does not have the \"" + pe.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not set topic of channel " + channel + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handle("set topic of channel " + channel, e instanceof RuntimeException re ? re : new RuntimeException(e));
         }
     }
 
@@ -661,11 +649,7 @@ public class DiscordUtil {
         try {
             message.delete().queue();
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not delete message in channel " + message.getChannel().asTextChannel() + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not delete message in channel " + message.getChannel().asTextChannel() + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("delete message in channel " + message.getChannel().asTextChannel(), e);
         }
     }
 
@@ -780,11 +764,7 @@ public class DiscordUtil {
         try {
             member.getGuild().addRoleToMember(member, role).queue(null, queueError("Add role " + role.getName() + " to " + member.getUser().getName()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not add " + member + " to role " + role + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not add " + member + " to role " + role + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("add " + member + " to role " + role, e);
         }
     }
 
@@ -802,11 +782,7 @@ public class DiscordUtil {
         try {
             member.getGuild().modifyMemberRoles(member, rolesToAdd, Collections.emptySet()).queue(null, queueError("Add roles to " + member.getUser().getName()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not add " + member + " to role(s) " + rolesToAdd + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not add " + member + " to role(s) " + rolesToAdd + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("add " + member + " to role(s) " + rolesToAdd, e);
         }
     }
 
@@ -828,11 +804,7 @@ public class DiscordUtil {
         try {
             member.getGuild().modifyMemberRoles(member, Collections.emptySet(), rolesToRemove).queue(null, queueError("Remove roles from " + member.getUser().getName()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not demote " + member + " from role(s) " + rolesToRemove + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not demote " + member + " from role(s) " + rolesToRemove + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("demote " + member + " from role(s) " + rolesToRemove, e);
         }
     }
     public static void removeRolesFromMember(Member member, Set<Role> rolesToRemove) {
@@ -858,11 +830,7 @@ public class DiscordUtil {
         try {
             member.modifyNickname(nickname).queue(null, queueError("Modify nickname for " + member.getUser().getName()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Could not set nickname for " + member + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Could not set nickname for " + member + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("set nickname for " + member, e);
         }
     }
 
@@ -894,11 +862,7 @@ public class DiscordUtil {
         try {
             member.ban(daysOfMessagesToDelete, java.util.concurrent.TimeUnit.DAYS).queue(null, queueError("Ban member " + member.getUser().getName()));
         } catch (PermissionException e) {
-            if (e.getPermission() != Permission.UNKNOWN) {
-                DiscordSRV.warning("Failed to ban " + member + " because the bot does not have the \"" + e.getPermission().getName() + "\" permission");
-            } else {
-                DiscordSRV.warning("Failed to ban " + member + " because \"" + e.getMessage() + "\"");
-            }
+            DiscordExceptionHandler.handlePermission("ban " + member, e);
         }
     }
 

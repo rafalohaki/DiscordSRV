@@ -22,21 +22,17 @@ package github.scarsz.discordsrv.hooks.chat;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.LangUtil;
-import github.scarsz.discordsrv.util.MessageUtil;
-import github.scarsz.discordsrv.util.PlayerUtil;
 import github.scarsz.discordsrv.util.PluginUtil;
-import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 import ru.brikster.chatty.api.ChattyApi;
 import ru.brikster.chatty.api.chat.Chat;
 import ru.brikster.chatty.api.event.ChattyMessageEvent;
 
 import java.util.Collection;
-import java.util.Optional;
 
 public class ChattyV3ChatHook implements ChatHook {
 
@@ -46,22 +42,14 @@ public class ChattyV3ChatHook implements ChatHook {
     }
 
     @Override
-    public void broadcastMessageToChannel(String channel, Component message) {
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
         ChattyApi api = getApi();
 
-        Optional<Chat> optChat = Optional.ofNullable(api.getChats().get(channel));
-        if (!optChat.isPresent()) {
-            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Attempted to broadcast message to channel \"" + channel + "\" but the channel doesn't exist (returned null); aborting message send");
-            return;
+        Chat chat = api.getChats().get(channelName);
+        if (chat == null) {
+            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Attempted to broadcast message to channel \"" + channelName + "\" but the channel doesn't exist (returned null); aborting message send");
+            return null;
         }
-
-        Chat chat = optChat.get();
-        String legacy = MessageUtil.toLegacy(message);
-        String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()
-                .replace("%channelcolor%", "")
-                .replace("%channelname%", chat.getId())
-                .replace("%channelnickname%", chat.getId())
-                .replace("%message%", legacy);
 
         Collection<? extends Player> recipients = chat.calculateRecipients(null);
         DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Sending a message to ChattyV3 chat (" + chat.getId() + "), recipients count: " + recipients.size());
@@ -70,23 +58,7 @@ public class ChattyV3ChatHook implements ChatHook {
             DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "ChattyV3 chat \"" + chat.getId() + "\" has 0 recipients — message will not be visible to any player");
         }
 
-        String translatedMessage = MessageUtil.translateLegacy(plainMessage);
-        // Folia: chat.sendLegacyMessage() internally calls player.sendMessage() from the current
-        // thread, which may not be the player's region thread. On Folia, each player is owned by
-        // their region thread, and sending messages from the wrong thread can silently fail.
-        // Use per-player EntityScheduler to ensure delivery on the correct region thread.
-        Component component = MessageUtil.toComponent(translatedMessage);
-        Plugin plugin = DiscordSRV.getPlugin();
-        for (Player recipient : recipients) {
-            recipient.getScheduler().run(plugin, task -> {
-                try {
-                    recipient.sendMessage(component);
-                } catch (Throwable t) {
-                    DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Failed to send Discord message to " + recipient.getName() + ": " + t.getMessage());
-                }
-            }, null);
-        }
-        PlayerUtil.notifyPlayersOfMentions(recipients::contains, legacy);
+        return new ChannelInfo(chat.getId(), chat.getId(), "", recipients);
     }
 
     private ChattyApi getApi() {

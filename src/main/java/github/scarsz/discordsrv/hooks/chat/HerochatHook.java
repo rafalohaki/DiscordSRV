@@ -26,15 +26,14 @@ import com.dthielke.herochat.Chatter;
 import com.dthielke.herochat.Herochat;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.LangUtil;
-import github.scarsz.discordsrv.util.MessageUtil;
-import github.scarsz.discordsrv.util.PlayerUtil;
 import github.scarsz.discordsrv.util.PluginUtil;
 import net.kyori.adventure.text.Component;
 import org.apache.commons.lang3.StringUtils;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,33 +42,31 @@ public class HerochatHook implements ChatHook {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onMessage(ChannelChatEvent event) {
-        // make sure message isn't just blank
         if (StringUtils.isBlank(event.getMessage())) return;
 
         DiscordSRV.getPlugin().processChatMessage(event.getSender().getPlayer(), event.getMessage(), event.getChannel().getName(), event.getResult() != Chatter.Result.ALLOWED, event);
     }
 
     @Override
-    public void broadcastMessageToChannel(String channel, Component message) {
-        Channel chatChannel = getChannelByCaseInsensitiveName(channel);
-        if (chatChannel == null) return; // no suitable channel found
-        String legacy = MessageUtil.toLegacy(message);
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        Channel chatChannel = getChannelByCaseInsensitiveName(channelName);
+        if (chatChannel == null) return null;
+        return new ChannelInfo(
+                chatChannel.getName(),
+                chatChannel.getNick(),
+                chatChannel.getColor().toString(),
+                chatChannel.getMembers().stream()
+                        .map(Chatter::getPlayer)
+                        .collect(Collectors.toList())
+        );
+    }
 
-        String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()
-                .replace("%channelname%", chatChannel.getName())
-                .replace("%channelnickname%", chatChannel.getNick())
-                .replace("%message%", legacy)
-                .replace("%channelcolor%", chatChannel.getColor().toString());
-
-        String translatedMessage = MessageUtil.translateLegacy(plainMessage);
-        chatChannel.sendRawMessage(translatedMessage);
-
-        PlayerUtil.notifyPlayersOfMentions(player ->
-                        chatChannel.getMembers().stream()
-                                .map(Chatter::getPlayer)
-                                .collect(Collectors.toList())
-                                .contains(player),
-                legacy);
+    @Override
+    public void deliverToRecipients(java.util.Collection<? extends Player> recipients, String formattedMessage) {
+        // Herochat has its own send API — but the default per-player delivery
+        // via getScheduler().run() is more Folia-safe than sendRawMessage.
+        // Override to use sendRawMessage on the channel for native formatting.
+        ChatHook.super.deliverToRecipients(recipients, formattedMessage);
     }
 
     private static Channel getChannelByCaseInsensitiveName(String name) {

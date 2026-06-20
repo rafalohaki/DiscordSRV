@@ -65,33 +65,11 @@ public final class JoinLeaveMessageSender {
             return;
         }
 
-        final String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
         final String message = StringUtils.isNotBlank(joinMessage) ? joinMessage : "";
-        final String name = player.getName();
-        final String avatarUrl = AvatarUrlResolver.getAvatarUrl(player);
-        final String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = DiscordSRV.getPlugin().getMainGuild() != null
-                ? DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName()
-                : DiscordUtil.getJda().getSelfUser().getName();
+        var translator = MessageTranslator.forPlayer(player, textChannel)
+                .withPlaceholder("message", message);
 
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%message%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(message) : message))
-                    .replace("%username%", needsEscape ? DiscordUtil.escapeMarkdown(name) : name)
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", name)
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            content = DiscordUtil.translateEmotes(content, textChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-
-        deliverMessage(messageFormat, translator, textChannel);
+        deliverMessage(messageFormat, translator.toFunction(), textChannel);
     }
 
     public static void sendLeaveMessage(Player player, String quitMessage) {
@@ -109,34 +87,11 @@ public final class JoinLeaveMessageSender {
             return;
         }
 
-        final String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
         final String message = StringUtils.isNotBlank(quitMessage) ? quitMessage : "";
-        final String name = player.getName();
+        var translator = MessageTranslator.forPlayer(player, textChannel)
+                .withPlaceholder("message", message);
 
-        String avatarUrl = AvatarUrlResolver.getAvatarUrl(player);
-        String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = DiscordSRV.getPlugin().getMainGuild() != null
-                ? DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName()
-                : DiscordUtil.getJda().getSelfUser().getName();
-
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%message%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(message) : message))
-                    .replace("%username%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(name) : name))
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", name)
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            content = DiscordUtil.translateEmotes(content, textChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-
-        deliverMessage(messageFormat, translator, textChannel);
+        deliverMessage(messageFormat, translator.toFunction(), textChannel);
     }
 
     private static MessageFormat getMessageFromConfiguration(String key) {

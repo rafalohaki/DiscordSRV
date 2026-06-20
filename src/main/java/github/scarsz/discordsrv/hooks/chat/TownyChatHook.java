@@ -25,7 +25,6 @@ import com.palmergames.bukkit.TownyChat.channels.Channel;
 import com.palmergames.bukkit.TownyChat.events.AsyncChatHookEvent;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.PlayerUtil;
 import github.scarsz.discordsrv.util.PluginUtil;
@@ -34,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.jetbrains.annotations.Nullable;
 import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
 
@@ -93,34 +93,17 @@ public class TownyChatHook implements ChatHook {
     }
 
     @Override
-    public void broadcastMessageToChannel(String channel, Component message) {
-        // get instance of TownyChat plugin
-        Chat instance = (Chat) Bukkit.getPluginManager().getPlugin("TownyChat");
-
-        // return if TownyChat is disabled
-        if (instance == null) return;
-
-        // get the destination channel
-        Channel destinationChannel = getChannelByCaseInsensitiveName(channel);
-
-        // return if channel was not available
-        if (destinationChannel == null) return;
-        String legacy = MessageUtil.toLegacy(message);
-
-        String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()
-                .replace("%channelcolor%", destinationChannel.getMessageColour() != null ? destinationChannel.getMessageColour() : "")
-                .replace("%channelname%", destinationChannel.getName())
-                .replace("%channelnickname%", destinationChannel.getChannelTag() != null ? destinationChannel.getChannelTag() : "")
-                .replace("%message%", legacy);
-
-        String translatedMessage = MessageUtil.translateLegacy(plainMessage);
-        for (Player player : PlayerUtil.getOnlinePlayers()) {
-            if (destinationChannel.isPresent(player.getName())) {
-                MessageUtil.sendMessage(player, translatedMessage);
-            }
-        }
-
-        PlayerUtil.notifyPlayersOfMentions(player -> destinationChannel.isPresent(player.getName()), legacy);
+    public @Nullable ChannelInfo resolveChannel(String channelName) {
+        Channel destinationChannel = getChannelByCaseInsensitiveName(channelName);
+        if (destinationChannel == null) return null;
+        return new ChannelInfo(
+                destinationChannel.getName(),
+                destinationChannel.getChannelTag(),
+                destinationChannel.getMessageColour(),
+                PlayerUtil.getOnlinePlayers().stream()
+                        .filter(p -> destinationChannel.isPresent(p.getName()))
+                        .collect(java.util.stream.Collectors.toList())
+        );
     }
 
     private static Channel getChannelByCaseInsensitiveName(String name) {

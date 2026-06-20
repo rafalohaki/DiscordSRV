@@ -25,6 +25,7 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.api.events.AchievementMessagePostProcessEvent;
 import github.scarsz.discordsrv.api.events.AchievementMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
+import github.scarsz.discordsrv.objects.MessageTranslator;
 import github.scarsz.discordsrv.util.*;
 import lombok.SneakyThrows;
 import java.lang.reflect.Field;
@@ -119,34 +120,15 @@ public class PlayerAdvancementDoneListener implements Listener {
         if (messageFormat == null) return;
 
         String finalAchievementName = StringUtils.isNotBlank(advancementTitle) ? advancementTitle : "";
-        String avatarUrl = DiscordSRV.getAvatarUrl(player);
-        String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = DiscordSRV.getPlugin().getMainGuild() != null ? DiscordSRV.getPlugin().getMainGuild().getSelfMember().getEffectiveName() : DiscordUtil.getJda().getSelfUser().getName();
-        String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
-
         TextChannel destinationChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName(channelName);
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%username%", needsEscape ? DiscordUtil.escapeMarkdown(player.getName()) : player.getName())
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", player.getName())
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%world%", player.getWorld().getName())
-                    .replace("%achievement%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(finalAchievementName) : finalAchievementName))
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            if (destinationChannel != null) content = DiscordUtil.translateEmotes(content, destinationChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-        MessageCreateData discordMessage = DiscordSRV.translateMessage(messageFormat, translator);
+        var translator = MessageTranslator.forPlayer(player, destinationChannel)
+                .withPlaceholder("achievement", finalAchievementName);
+        BiFunction<String, Boolean, String> translatorFn = translator.toFunction();
+        MessageCreateData discordMessage = DiscordSRV.translateMessage(messageFormat, translatorFn);
         if (discordMessage == null) return;
 
-        String webhookName = translator.apply(messageFormat.getWebhookName(), false);
-        String webhookAvatarUrl = translator.apply(messageFormat.getWebhookAvatarUrl(), false);
+        String webhookName = translatorFn.apply(messageFormat.getWebhookName(), false);
+        String webhookAvatarUrl = translatorFn.apply(messageFormat.getWebhookAvatarUrl(), false);
 
         AchievementMessagePostProcessEvent postEvent = DiscordSRV.api.callEvent(new AchievementMessagePostProcessEvent(channelName, discordMessage, player, advancementTitle, event, messageFormat.isUseWebhooks(), webhookName, webhookAvatarUrl, preEvent.isCancelled()));
         if (postEvent.isCancelled()) {
