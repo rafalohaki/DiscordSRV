@@ -66,10 +66,28 @@ public class ChattyChatHook implements ChatHook {
                 .replace("%message%", legacy);
 
         Collection<? extends Player> recipients = chat.getRecipients(null);
-        DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Sending a message to Chatty chat (" + chat.getName() + "), recipients: " + recipients);
+        DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Sending a message to Chatty chat (" + chat.getName() + "), recipients count: " + recipients.size());
+
+        if (recipients.isEmpty()) {
+            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Chatty chat \"" + chat.getName() + "\" has 0 recipients — message will not be visible to any player");
+        }
 
         String translatedMessage = MessageUtil.translateLegacy(plainMessage);
-        chat.sendMessage(translatedMessage);
+        // Folia: chat.sendMessage() internally calls player.sendMessage() from the current thread,
+        // which may not be the player's region thread. On Folia, each player is owned by their
+        // region thread, and sending messages from the wrong thread can silently fail.
+        // Use per-player EntityScheduler to ensure delivery on the correct region thread.
+        Component component = MessageUtil.toComponent(translatedMessage);
+        Plugin plugin = DiscordSRV.getPlugin();
+        for (Player recipient : recipients) {
+            recipient.getScheduler().run(plugin, task -> {
+                try {
+                    recipient.sendMessage(component);
+                } catch (Throwable t) {
+                    DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Failed to send Discord message to " + recipient.getName() + ": " + t.getMessage());
+                }
+            }, null);
+        }
         PlayerUtil.notifyPlayersOfMentions(recipients::contains, legacy);
     }
 

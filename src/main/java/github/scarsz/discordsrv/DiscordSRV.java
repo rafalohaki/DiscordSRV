@@ -1849,16 +1849,49 @@ public class DiscordSRV extends JavaPlugin {
                 .map(hook -> (ChatHook) hook)
                 .findAny().orElse(null);
 
+        DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "broadcastMessageToMinecraftServer: channel=" + channel
+                + ", chatHook=" + (chatHook != null ? chatHook.getClass().getSimpleName() : "null")
+                + ", onlinePlayers=" + PlayerUtil.getOnlinePlayers().size());
+
         if (chatHook == null || channel == null) {
-            if (channel != null && !channel.equalsIgnoreCase("global")) return; // don't send messages for non-global channels with no plugin hooks
+            if (channel != null && !channel.equalsIgnoreCase("global")) {
+                DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Not broadcasting Discord message to Minecraft: no chat hook and channel \"" + channel + "\" is not \"global\"");
+                return; // don't send messages for non-global channels with no plugin hooks
+            }
+            // No chat hook: send to all online players. On Folia, each player is owned by their
+            // region thread — Audience.sendMessage() from the JDA gateway thread can silently fail.
+            // Use per-player EntityScheduler to guarantee delivery on the correct region thread.
             DiscordGuildMessagePreBroadcastEvent preBroadcastEvent = api.callEvent(new DiscordGuildMessagePreBroadcastEvent
                     (author, channel, message, PlayerUtil.getOnlinePlayers()));
             message = preBroadcastEvent.getMessage();
             channel = preBroadcastEvent.getChannel();
-            MessageUtil.sendMessage(preBroadcastEvent.getRecipients(), message);
+            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Broadcasting to " + preBroadcastEvent.getRecipients().size() + " recipients (no chat hook, channel=" + channel + ")");
+            final Component finalNoHookMessage = message;
+            Plugin plugin = this;
+            for (CommandSender recipient : preBroadcastEvent.getRecipients()) {
+                if (!(recipient instanceof Player player)) continue;
+                player.getScheduler().run(plugin, task -> {
+                    try {
+                        player.sendMessage(finalNoHookMessage);
+                    } catch (Throwable t) {
+                        DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Failed to send Discord message to " + player.getName() + ": " + t.getMessage());
+                    }
+                }, null);
+            }
             PlayerUtil.notifyPlayersOfMentions(null, MessageUtil.toLegacy(message));
         } else {
-            chatHook.broadcastMessageToChannel(channel, message);
+            // Chat hook present (Chatty/VentureChat/TownyChat/etc.): these third-party APIs
+            // are NOT thread-safe on Folia — they touch world state (player packets, chat
+            // channels) that must run on a region thread. Hop to the global region scheduler
+            // before delegating to the hook. Without this hop, chat.sendMessage() silently
+            // fails on JDA's gateway thread and players never see the message.
+            final ChatHook finalChatHook = chatHook;
+            final String finalChannel = channel;
+            final Component finalMessage = message;
+            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Hopping to global region scheduler for chat hook " + finalChatHook.getClass().getSimpleName() + " to channel \"" + finalChannel + "\"");
+            SchedulerUtil.runTask(this, () -> {
+                finalChatHook.broadcastMessageToChannel(finalChannel, finalMessage);
+            });
 
             // hacky fix to avoid api breakage :/
             message = message.replaceText(TextReplacementConfig.builder()
