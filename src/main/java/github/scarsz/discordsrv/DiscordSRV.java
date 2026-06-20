@@ -42,7 +42,13 @@ import github.scarsz.discordsrv.listeners.*;
 import github.scarsz.discordsrv.modules.alerts.AlertListener;
 import github.scarsz.discordsrv.modules.requirelink.RequireLinkModule;
 import github.scarsz.discordsrv.objects.CancellationDetector;
+import github.scarsz.discordsrv.objects.ChannelRouter;
+import github.scarsz.discordsrv.objects.AvatarUrlResolver;
+import github.scarsz.discordsrv.objects.ChatMessageProcessor;
+import github.scarsz.discordsrv.objects.JoinLeaveMessageSender;
 import github.scarsz.discordsrv.objects.MessageFormat;
+import github.scarsz.discordsrv.objects.PluginLogger;
+import github.scarsz.discordsrv.objects.RoleResolver;
 import github.scarsz.discordsrv.objects.log4j.JdaFilter;
 import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
 import github.scarsz.discordsrv.objects.managers.CommandManager;
@@ -157,6 +163,10 @@ public class DiscordSRV extends JavaPlugin {
     @Getter private GroupSynchronizationManager groupSynchronizationManager = new GroupSynchronizationManager();
     @Getter private IncompatibleClientManager incompatibleClientManager = new IncompatibleClientManager();
 
+    // Extracted collaborators (refactored from god class)
+    @Getter private ChannelRouter channelRouter;
+    @Getter private ChatMessageProcessor chatMessageProcessor;
+
     // Threads
     @Getter private ChannelTopicUpdater channelTopicUpdater;
     @Getter private ChannelUpdater channelUpdater;
@@ -270,56 +280,16 @@ public class DiscordSRV extends JavaPlugin {
             }
         });
     }
-    public String getMainChatChannel() {
-        return channels.size() != 0 ? channels.keySet().iterator().next() : null;
-    }
-    public TextChannel getMainTextChannel() {
-        if (channels.isEmpty() || jda == null) return null;
-        String firstChannel = channels.values().iterator().next();
-        if (StringUtils.isBlank(firstChannel)) return null;
-        return DiscordUtil.getTextChannelById(firstChannel);
-    }
-    public Guild getMainGuild() {
-        if (jda == null) return null;
-
-        return getMainTextChannel() != null
-                ? getMainTextChannel().getGuild()
-                : getConsoleChannel() != null
-                    ? getConsoleChannel().getGuild()
-                    : jda.getGuilds().size() > 0
-                        ? jda.getGuilds().get(0)
-                        : null;
-    }
-    public TextChannel getConsoleChannel() {
-        if (jda == null) return null;
-
-        String consoleChannel = config.getString("DiscordConsoleChannelId");
-        return StringUtils.isNotBlank(consoleChannel) && StringUtils.isNumeric(consoleChannel)
-                ? DiscordUtil.getTextChannelById(consoleChannel)
-                : null;
-    }
+    // Channel routing — delegate to ChannelRouter (extracted from god class)
+    public String getMainChatChannel() { return channelRouter.getMainChatChannel(); }
+    public TextChannel getMainTextChannel() { return channelRouter.getMainTextChannel(); }
+    public Guild getMainGuild() { return channelRouter.getMainGuild(); }
+    public TextChannel getConsoleChannel() { return channelRouter.getConsoleChannel(); }
     public TextChannel getDestinationTextChannelForGameChannelName(String gameChannelName) {
-        Map.Entry<String, String> entry = channels.entrySet().stream().filter(e -> e.getKey().equals(gameChannelName)).findFirst().orElse(null);
-        String value = entry != null ? entry.getValue() : null;
-        if (!StringUtils.isBlank(value)) {
-            return jda.getTextChannelById(value); // found case-sensitive channel
-        }
-
-        // no case-sensitive channel found, try case in-sensitive
-        entry = channels.entrySet().stream().filter(e -> e.getKey().equalsIgnoreCase(gameChannelName)).findFirst().orElse(null);
-        value = entry != null ? entry.getValue() : null;
-        if (!StringUtils.isBlank(value)) {
-            return jda.getTextChannelById(value); // found case-insensitive channel
-        }
-
-        return null; // no channel found, case-insensitive or not
+        return channelRouter.getDestinationTextChannelForGameChannelName(gameChannelName);
     }
     public String getDestinationGameChannelNameForTextChannel(TextChannel source) {
-        if (source == null) return null;
-        return channels.entrySet().stream()
-                .filter(entry -> source.getId().equals(entry.getValue()))
-                .map(Map.Entry::getKey)
-                .findFirst().orElse(null);
+        return channelRouter.getDestinationGameChannelNameForTextChannel(source);
     }
     public File getLogFile() {
         String fileName = config().getString("DiscordConsoleChannelUsageLog");
@@ -328,66 +298,24 @@ public class DiscordSRV extends JavaPlugin {
         return new File(this.getLogFolder(), fileName);
     }
 
-    // log messages
-    public static void logThrowable(Throwable throwable, Consumer<String> logger) {
-        StringWriter stringWriter = new StringWriter();
-        throwable.printStackTrace(new PrintWriter(stringWriter));
-
-        for (String line : stringWriter.toString().split("\n")) logger.accept(line);
-    }
-    public static void info(LangUtil.InternalMessage message) {
-        info(message.toString());
-    }
-    public static void info(String message) {
-        getPlugin().getLogger().info(message);
-    }
-    public static void warning(LangUtil.InternalMessage message) {
-        warning(message.toString());
-    }
-    public static void warning(String message) {
-        getPlugin().getLogger().warning(message);
-    }
-    public static void error(LangUtil.InternalMessage message) {
-        error(message.toString());
-    }
-    public static void error(String message) {
-        getPlugin().getLogger().severe(message);
-    }
-    public static void error(Throwable throwable) {
-        logThrowable(throwable, DiscordSRV::error);
-    }
-    public static void error(String message, Throwable throwable) {
-        error(message);
-        error(throwable);
-    }
-    public static void debug(String message) {
-        debug(Debug.UNCATEGORIZED, message);
-    }
-    public static void debug(Debug type, String message) {
-        if (type.isVisible()) {
-            getPlugin().getLogger().info("[" + type.name() + " DEBUG] " + message
-                    + (Debug.CALLSTACKS.isVisible() ? "\n" + DebugUtil.getStackTrace() : ""));
-        }
-    }
-    public static void debug(Throwable throwable) {
-        debug(Debug.UNCATEGORIZED, throwable);
-    }
-    public static void debug(Debug type, Throwable throwable) {
-        logThrowable(throwable, DiscordSRV::debug);
-    }
-    public static void debug(Throwable throwable, String message) {
-        debug(Debug.UNCATEGORIZED, throwable, message);
-    }
-    public static void debug(Debug type, Throwable throwable, String message) {
-        debug(throwable);
-        debug(message);
-    }
-    public static void debug(Collection<String> message) {
-        message.forEach(DiscordSRV::debug);
-    }
-    public static void debug(Debug type, Collection<String> message) {
-        message.forEach(msg -> debug(type, msg));
-    }
+    // log messages — delegate to PluginLogger (extracted from god class)
+    public static void logThrowable(Throwable throwable, Consumer<String> logger) { PluginLogger.logThrowable(throwable, logger); }
+    public static void info(LangUtil.InternalMessage message) { PluginLogger.info(message); }
+    public static void info(String message) { PluginLogger.info(message); }
+    public static void warning(LangUtil.InternalMessage message) { PluginLogger.warning(message); }
+    public static void warning(String message) { PluginLogger.warning(message); }
+    public static void error(LangUtil.InternalMessage message) { PluginLogger.error(message); }
+    public static void error(String message) { PluginLogger.error(message); }
+    public static void error(Throwable throwable) { PluginLogger.error(throwable); }
+    public static void error(String message, Throwable throwable) { PluginLogger.error(message, throwable); }
+    public static void debug(String message) { PluginLogger.debug(message); }
+    public static void debug(Debug type, String message) { PluginLogger.debug(type, message); }
+    public static void debug(Throwable throwable) { PluginLogger.debug(throwable); }
+    public static void debug(Debug type, Throwable throwable) { PluginLogger.debug(type, throwable); }
+    public static void debug(Throwable throwable, String message) { PluginLogger.debug(throwable, message); }
+    public static void debug(Debug type, Throwable throwable, String message) { PluginLogger.debug(type, throwable, message); }
+    public static void debug(Collection<String> message) { PluginLogger.debug(message); }
+    public static void debug(Debug type, Collection<String> message) { PluginLogger.debug(type, message); }
 
     public DiscordSRV() {
         super();
@@ -461,6 +389,11 @@ public class DiscordSRV extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // Initialize extracted collaborators before anything else — they are used
+        // throughout init() and the chat/listener lifecycle.
+        this.channelRouter = new ChannelRouter(this, channels);
+        this.chatMessageProcessor = new ChatMessageProcessor(this);
+
         if (++DebugUtil.initializationCount > 1) {
             DiscordSRV.error(ChatColor.RED + LangUtil.InternalMessage.PLUGIN_RELOADED.toString());
             PlayerUtil.getOnlinePlayers().stream()
@@ -1629,206 +1562,23 @@ public class DiscordSRV extends JavaPlugin {
         return worldHook.getWorldAlias(world);
     }
 
+    // Chat processing — delegate to ChatMessageProcessor (extracted from god class)
     @Deprecated
     public void processChatMessage(Player player, String message, String channel, boolean cancelled) {
-        this.processChatMessage(player, message, channel, cancelled, null);
+        chatMessageProcessor.processChatMessage(player, message, channel, cancelled);
     }
 
     public void processChatMessage(Player player, String message, String channel, boolean cancelled, org.bukkit.event.Event event) {
-        this.processChatMessage(
-                player,
-                MessageUtil.toComponent(message, true),
-                channel,
-                cancelled,
-                event
-        );
+        chatMessageProcessor.processChatMessage(player, message, channel, cancelled, event);
     }
 
     @Deprecated
     public void processChatMessage(Player player, Component message, String channel, boolean cancelled) {
-        this.processChatMessage(player, message, channel, cancelled, null);
+        chatMessageProcessor.processChatMessage(player, message, channel, cancelled);
     }
 
-    @SuppressWarnings("deprecation") // Display names are legacy, Spigot is supported
     public void processChatMessage(Player player, Component message, String channel, boolean cancelled, org.bukkit.event.Event event) {
-        // log debug message to notify that a chat message was being processed
-        debug(Debug.MINECRAFT_TO_DISCORD, "Chat message received, canceled: " + cancelled + ", channel: " + channel);
-
-        if (player == null) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "Received chat message was from a null sender, not processing message");
-            return;
-        }
-
-        // return if player doesn't have permission
-        if (!GamePermissionUtil.hasPermission(player, "discordsrv.chat")) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "User " + player.getName() + " sent a message but it was not delivered to Discord due to lack of in-game permission (discordsrv.chat)");
-            return;
-        }
-
-        // return if mcMMO is enabled and message is from party or admin chat
-        if (PluginUtil.pluginHookIsEnabled("mcMMO")) {
-            if (player.hasMetadata("mcMMO: Player Data")) {
-                boolean usingAdminChat = com.gmail.nossr50.api.ChatAPI.isUsingAdminChat(player);
-                boolean usingPartyChat = com.gmail.nossr50.api.ChatAPI.isUsingPartyChat(player);
-                if (usingAdminChat || usingPartyChat) {
-                    debug(Debug.MINECRAFT_TO_DISCORD, "Not processing message because message was from " + (usingAdminChat ? "admin" : "party") + " chat");
-                    return;
-                }
-            }
-        }
-
-        // return if event canceled
-        if (config().getBooleanElse("RespectChatPlugins", true) && cancelled) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "User " + player.getName() + " sent a message but it was not delivered to Discord because the chat event was canceled");
-            return;
-        }
-
-        // return if should not send in-game chat
-        if (!config().getBoolean("DiscordChatChannelMinecraftToDiscord")) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "User " + player.getName() + " sent a message but it was not delivered to Discord because DiscordChatChannelMinecraftToDiscord is false");
-            return;
-        }
-
-        // return if doesn't match prefix filter
-        String prefix = config().getString("DiscordChatChannelPrefixRequiredToProcessMessage");
-        boolean blacklist = config.getBoolean("DiscordChatChannelPrefixActsAsBlacklist");
-
-        String legacy = MessageUtil.toLegacy(message);
-        if (MessageUtil.strip(legacy).startsWith(prefix) == blacklist) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "User " + player.getName() + " sent a message but it was not delivered to Discord because " + (blacklist ? "the message started with \"" + prefix : "the message didn't start with \"" + prefix) + "\" (DiscordChatChannelPrefixRequiredToProcessMessage): \"" + message + "\"");
-            return;
-        }
-
-        GameChatMessagePreProcessEvent preEvent = api.callEvent(new GameChatMessagePreProcessEvent(channel, message, player, event));
-        if (preEvent.isCancelled()) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "GameChatMessagePreProcessEvent was cancelled, message send aborted");
-            return;
-        }
-        channel = preEvent.getChannel(); // update channel from event in case any listeners modified it
-        message = preEvent.getMessageComponent(); // update message from event in case any listeners modified it
-
-        String userPrimaryGroup = VaultHook.getPrimaryGroup(player);
-        boolean hasGoodGroup = StringUtils.isNotBlank(userPrimaryGroup);
-
-        // capitalize the first letter of the user's primary group to look neater
-        if (hasGoodGroup) userPrimaryGroup = userPrimaryGroup.substring(0, 1).toUpperCase() + userPrimaryGroup.substring(1);
-
-        boolean reserializer = DiscordSRV.config().getBoolean("Experiment_MCDiscordReserializer_ToDiscord");
-        boolean webhookMessageDelivery = config().getBoolean("Experiment_WebhookChatMessageDelivery");
-
-        String discordMessageContent;
-        if (reserializer) {
-            discordMessageContent = MessageUtil.reserializeToDiscord(message);
-        } else {
-            discordMessageContent = MessageUtil.strip(MessageUtil.toLegacy(message));
-        }
-
-        // Modify the message's content with the declared Regexes
-        if (webhookMessageDelivery) {
-            discordMessageContent = processRegex(discordMessageContent);
-            if (discordMessageContent == null) return;
-        }
-
-        if (config().getBoolean("DiscordChatChannelTranslateMentions")) {
-            discordMessageContent = DiscordUtil.convertMentionsFromNames(discordMessageContent, getMainGuild());
-        } else {
-            discordMessageContent = discordMessageContent.replace("@", "@\u200B"); // zero-width space
-        }
-
-        String processedMessage = discordMessageContent;
-
-        if (!webhookMessageDelivery) {
-            // If webhook delivery is not enable, we add all the placeholders
-            String username = player.getName();
-            if (!reserializer) username = DiscordUtil.escapeMarkdown(username);
-
-            String displayName = MessageUtil.strip(player.getDisplayName());
-
-            // Replace the internal placeholders in the message pattern
-            String discordMessagePattern = (hasGoodGroup
-                    ? LangUtil.Message.CHAT_TO_DISCORD.toString()
-                    : LangUtil.Message.CHAT_TO_DISCORD_NO_PRIMARY_GROUP.toString())
-                    .replace("%displayname%", DiscordUtil.escapeMarkdown(displayName))
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%username%", username)
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%channelname%", channel != null ? channel.substring(0, 1).toUpperCase() + channel.substring(1) : "")
-                    .replace("%primarygroup%", userPrimaryGroup)
-                    .replace("%usernamenoescapes%", MessageUtil.strip(player.getName()))
-                    .replace("%world%", player.getWorld().getName())
-                    .replace("%worldalias%", MessageUtil.strip(getWorldAlias(player.getWorld().getName())));
-            // Replace the PAPI placeholders in the message pattern
-            discordMessagePattern = PlaceholderUtil.replacePlaceholdersToDiscord(discordMessagePattern, player);
-
-            /*
-            // Reserialize the message pattern, in the case the placeholders added more color codes.
-            // DiscordSRV is not ready for this yet. Leaving this here for when that faithful day comes upon us.
-            if (reserializer){
-                discordMessagePattern =
-                        MessageUtil.reserializeToDiscord(
-                                //Serialize into Components
-                                LegacyComponentSerializer.legacySection().deserialize(
-                                        //Replace $ with §
-                                        discordMessagePattern.replace(
-                                                LegacyComponentSerializer.AMPERSAND_CHAR,
-                                                LegacyComponentSerializer.SECTION_CHAR)
-                                ));
-            } else*/
-            // Strip the final message from any rouge color/style codes.
-            if (!reserializer) {
-                discordMessagePattern = MessageUtil.strip(discordMessagePattern);
-            }
-
-            // Replace the message after to avoid replacing rouge PAPI placeholders inside of the message's content
-            discordMessagePattern = discordMessagePattern
-                    .replace("%message%", discordMessageContent);
-
-            discordMessagePattern = processRegex(discordMessagePattern);
-            if (discordMessagePattern == null) return;
-
-            processedMessage = discordMessagePattern;
-        }
-
-        // Send the post process message event
-        GameChatMessagePostProcessEvent postEvent = api.callEvent(new GameChatMessagePostProcessEvent(channel, processedMessage, player, preEvent.isCancelled(), event));
-        if (postEvent.isCancelled()) {
-            debug(Debug.MINECRAFT_TO_DISCORD, "GameChatMessagePostProcessEvent was cancelled, message send aborted");
-            return;
-        }
-        channel = postEvent.getChannel(); // update channel from event in case any listeners modified it
-        processedMessage = postEvent.getProcessedMessage(); // update message from event in case any listeners modified it
-
-        // If the channel is null, replace it with the global channel
-        if (channel == null) channel = getOptionalChannel("global");
-        TextChannel destinationChannel = getDestinationTextChannelForGameChannelName(channel);
-
-        if (!webhookMessageDelivery) {
-            DiscordUtil.sendMessage(destinationChannel, processedMessage);
-        } else {
-
-            if (destinationChannel == null) {
-                debug(Debug.MINECRAFT_TO_DISCORD, "Failed to find Discord channel to forward message from game channel " + channel);
-                return;
-            }
-
-            if (!DiscordUtil.checkPermission(destinationChannel, Permission.MANAGE_WEBHOOKS)) {
-                DiscordSRV.error("Couldn't deliver chat message as webhook because the bot lacks the \"Manage Webhooks\" permission.");
-                return;
-            }
-
-            WebhookUtil.deliverMessage(destinationChannel, player, processedMessage);
-        }
-    }
-
-    private String processRegex(String discordMessage) {
-        for (Map.Entry<Pattern, String> entry : getGameRegexes().entrySet()) {
-            discordMessage = entry.getKey().matcher(discordMessage).replaceAll(Matcher.quoteReplacement(entry.getValue()));
-            if (StringUtils.isBlank(discordMessage)) {
-                DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not processing Minecraft message because it was cleared by a filter: " + entry.getKey().pattern());
-                return null;
-            }
-        }
-        return discordMessage;
+        chatMessageProcessor.processChatMessage(player, message, channel, cancelled, event);
     }
 
     @Deprecated
@@ -1915,58 +1665,7 @@ public class DiscordSRV extends JavaPlugin {
      * @see #sendLeaveMessage(Player, String)
      */
     public void sendJoinMessage(Player player, String joinMessage) {
-        if (player == null) throw new IllegalArgumentException("player cannot be null");
-
-        MessageFormat messageFormat = player.hasPlayedBefore()
-                ? getMessageFromConfiguration("MinecraftPlayerJoinMessage")
-                : getMessageFromConfiguration("MinecraftPlayerFirstJoinMessage");
-        if (messageFormat == null || !messageFormat.isAnyContent()) {
-            debug("Not sending join message due to it being disabled");
-            return;
-        }
-
-        TextChannel textChannel = getOptionalTextChannel("join");
-        if (textChannel == null) {
-            DiscordSRV.debug("Not sending join message, text channel is null");
-            return;
-        }
-
-        final String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
-        final String message = StringUtils.isNotBlank(joinMessage) ? joinMessage : "";
-        final String name = player.getName();
-        final String avatarUrl = getAvatarUrl(player);
-        final String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = getMainGuild() != null ? getMainGuild().getSelfMember().getEffectiveName() : DiscordUtil.getJda().getSelfUser().getName();
-
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%message%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(message) : message))
-                    .replace("%username%", needsEscape ? DiscordUtil.escapeMarkdown(name) : name)
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", name)
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            content = DiscordUtil.translateEmotes(content, textChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-
-        MessageCreateData discordMessage = translateMessage(messageFormat, translator);
-        if (discordMessage == null) return;
-
-        String webhookName = translator.apply(messageFormat.getWebhookName(), false);
-        String webhookAvatarUrl = translator.apply(messageFormat.getWebhookAvatarUrl(), false);
-
-        if (messageFormat.isUseWebhooks()) {
-            WebhookUtil.deliverMessage(textChannel, webhookName, webhookAvatarUrl,
-                    discordMessage.getContent(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
-        } else {
-            DiscordUtil.queueMessage(textChannel, discordMessage, true);
-        }
+        JoinLeaveMessageSender.sendJoinMessage(player, joinMessage);
     }
 
     /**
@@ -1977,57 +1676,7 @@ public class DiscordSRV extends JavaPlugin {
      * @see #sendJoinMessage(Player, String)
      */
     public void sendLeaveMessage(Player player, String quitMessage) {
-        if (player == null) throw new IllegalArgumentException("player cannot be null");
-
-        MessageFormat messageFormat = getMessageFromConfiguration("MinecraftPlayerLeaveMessage");
-        if (messageFormat == null || !messageFormat.isAnyContent()) {
-            debug("Not sending leave message due to it being disabled");
-            return;
-        }
-
-        TextChannel textChannel = getOptionalTextChannel("leave");
-        if (textChannel == null) {
-            DiscordSRV.debug("Not sending quit message, text channel is null");
-            return;
-        }
-
-        final String displayName = StringUtils.isNotBlank(player.getDisplayName()) ? MessageUtil.strip(player.getDisplayName()) : "";
-        final String message = StringUtils.isNotBlank(quitMessage) ? quitMessage : "";
-        final String name = player.getName();
-
-        String avatarUrl = getAvatarUrl(player);
-        String botAvatarUrl = DiscordUtil.getJda().getSelfUser().getEffectiveAvatarUrl();
-        String botName = getMainGuild() != null ? getMainGuild().getSelfMember().getEffectiveName() : DiscordUtil.getJda().getSelfUser().getName();
-
-        BiFunction<String, Boolean, String> translator = (content, needsEscape) -> {
-            if (content == null) return null;
-            content = content
-                    .replaceAll("%time%|%date%", TimeUtil.timeStamp())
-                    .replace("%message%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(message) : message))
-                    .replace("%username%", MessageUtil.strip(needsEscape ? DiscordUtil.escapeMarkdown(name) : name))
-                    .replace("%displayname%", needsEscape ? DiscordUtil.escapeMarkdown(displayName) : displayName)
-                    .replace("%usernamenoescapes%", name)
-                    .replace("%displaynamenoescapes%", displayName)
-                    .replace("%embedavatarurl%", avatarUrl)
-                    .replace("%botavatarurl%", botAvatarUrl)
-                    .replace("%botname%", botName);
-            content = DiscordUtil.translateEmotes(content, textChannel.getGuild());
-            content = PlaceholderUtil.replacePlaceholdersToDiscord(content, player);
-            return content;
-        };
-
-        MessageCreateData discordMessage = translateMessage(messageFormat, translator);
-        if (discordMessage == null) return;
-
-        String webhookName = translator.apply(messageFormat.getWebhookName(), false);
-        String webhookAvatarUrl = translator.apply(messageFormat.getWebhookAvatarUrl(), false);
-
-        if (messageFormat.isUseWebhooks()) {
-            WebhookUtil.deliverMessage(textChannel, webhookName, webhookAvatarUrl,
-                    discordMessage.getContent(), discordMessage.getEmbeds().stream().findFirst().orElse(null));
-        } else {
-            DiscordUtil.queueMessage(textChannel, discordMessage, true);
-        }
+        JoinLeaveMessageSender.sendLeaveMessage(player, quitMessage);
     }
 
     public MessageFormat getMessageFromConfiguration(String key) {
@@ -2074,88 +1723,10 @@ public class DiscordSRV extends JavaPlugin {
         return messageBuilder.isEmpty() ? null : messageBuilder.build();
     }
 
-    public static String getAvatarUrl(String username, UUID uuid) {
-        String avatarUrl = constructAvatarUrl(username, uuid, "");
-        avatarUrl = PlaceholderUtil.replacePlaceholdersToDiscord(avatarUrl);
-        return avatarUrl;
-    }
-    private static String getAvatarUrl(OfflinePlayer player) {
-        if (player.isOnline()) {
-            return getAvatarUrl(player.getPlayer());
-        } else {
-            String avatarUrl = constructAvatarUrl(player.getName(), player.getUniqueId(), "");
-            avatarUrl = PlaceholderUtil.replacePlaceholdersToDiscord(avatarUrl, player);
-            return avatarUrl;
-        }
-    }
-    public static String getAvatarUrl(Player player) {
-        String avatarUrl = constructAvatarUrl(player.getName(), player.getUniqueId(), NMSUtil.getTexture(player));
-        avatarUrl = PlaceholderUtil.replacePlaceholdersToDiscord(avatarUrl, player);
-        return avatarUrl;
-    }
-    private static String constructAvatarUrl(String username, UUID uuid, String texture) {
-        boolean offline = uuid == null || PlayerUtil.uuidIsOffline(uuid);
-        OfflinePlayer player = null;
-        if (StringUtils.isNotBlank(username) && offline) {
-            // resolve username to player/uuid
-            //TODO resolve name to online uuid when offline player is present
-            // (can't do it by calling Bukkit.getOfflinePlayer(username).getUniqueId() because bukkit just returns the offline-mode CraftPlayer)
-            player = Bukkit.getOfflinePlayer(username);
-            uuid = player.getUniqueId();
-            offline = PlayerUtil.uuidIsOffline(uuid);
-        }
-        if (StringUtils.isBlank(username) && uuid != null) {
-            // resolve uuid to player/username
-            player = Bukkit.getOfflinePlayer(uuid);
-            username = player.getName();
-        }
-        if (StringUtils.isBlank(texture) && player != null && player.isOnline()) {
-            // grab texture placeholder from player if online
-            texture = NMSUtil.getTexture(player.getPlayer());
-        }
-
-        String avatarUrl = DiscordSRV.config().getString("AvatarUrl");
-        String defaultUrl = "https://crafthead.net/helm/{uuid-nodashes}/{size}#{texture}";
-        String offlineUrl = "https://crafthead.net/helm/{username}/{size}#{texture}";
-
-        if (StringUtils.isBlank(avatarUrl)) {
-            avatarUrl = !offline ? defaultUrl : offlineUrl;
-        }
-
-        if (avatarUrl.contains("://crafatar.com/")) {
-            avatarUrl = !offline ? defaultUrl : offlineUrl;
-            DiscordSRV.config().setRuntimeValue("AvatarUrl", avatarUrl);
-
-            DiscordSRV.warning("Your AvatarUrl config option uses crafatar.com, which no longer allows usage with Discord. An alternative provider will be used.");
-            DiscordSRV.warning("You should set your AvatarUrl (in config.yml) to an empty string (\"\") to get rid of this warning.");
-        }
-
-        if (offline && (avatarUrl.contains("{uuid}") || avatarUrl.contains("{uuid-nodashes}")) && !offlineUuidAvatarUrlNagged) {
-            DiscordSRV.error("Your AvatarUrl config option contains {uuid} or {uuid-nodashes} but this server is using offline UUIDs.");
-            offlineUuidAvatarUrlNagged = true;
-        }
-
-        if (username.startsWith("*")) {
-            // geyser adds * to beginning of its usernames
-            username = username.substring(1);
-        }
-        try {
-            username = URLEncoder.encode(username, "utf8");
-        } catch (UnsupportedEncodingException ignored) {}
-
-        String usedBaseUrl = avatarUrl;
-        avatarUrl = avatarUrl
-                .replace("{texture}", texture != null ? texture : "")
-                .replace("{username}", username)
-                .replace("{uuid}", uuid != null ? uuid.toString() : "")
-                .replace("{uuid-nodashes}", uuid.toString().replace("-", ""))
-                .replace("{size}", "128");
-
-        DiscordSRV.debug("Constructed avatar url: " + avatarUrl + " from " + usedBaseUrl);
-        DiscordSRV.debug("Avatar url is for " + (offline ? "**offline** " : "") + "uuid: " + uuid + ". The texture is: " + texture);
-
-        return avatarUrl;
-    }
+    // Avatar URL resolution — delegate to AvatarUrlResolver (extracted from god class)
+    public static String getAvatarUrl(String username, UUID uuid) { return AvatarUrlResolver.getAvatarUrl(username, uuid); }
+    public static String getAvatarUrl(OfflinePlayer player) { return AvatarUrlResolver.getAvatarUrl(player); }
+    public static String getAvatarUrl(Player player) { return AvatarUrlResolver.getAvatarUrl(player); }
 
     public static int getLength(MessageCreateData message) {
         StringBuilder content = new StringBuilder();
@@ -2179,30 +1750,9 @@ public class DiscordSRV extends JavaPlugin {
         return content.toString().replaceAll("[^A-z]", "").length();
     }
 
-    public List<Role> getSelectedRoles(Member member) {
-        List<Role> selectedRoles;
-        List<String> discordRolesSelection = DiscordSRV.config().getStringList("DiscordChatChannelRolesSelection");
-        // if we have a whitelist in the config
-        if (DiscordSRV.config().getBoolean("DiscordChatChannelRolesSelectionAsWhitelist")) {
-            selectedRoles = member.getRoles().stream()
-                    .filter(role -> discordRolesSelection.contains(DiscordUtil.getRoleName(role)) || discordRolesSelection.contains(role.getId()))
-                    .collect(Collectors.toList());
-        } else { // if we have a blacklist in the settings
-            selectedRoles = member.getRoles().stream()
-                    .filter(role -> !(discordRolesSelection.contains(DiscordUtil.getRoleName(role)) || discordRolesSelection.contains(role.getId())))
-                    .collect(Collectors.toList());
-        }
-        selectedRoles.removeIf(role -> StringUtils.isBlank(role.getName()));
-        return selectedRoles;
-    }
-
-    public Role getTopSelectedRole(Member member) {
-        List<Role> selectedRoles = getSelectedRoles(member);
-        if (selectedRoles.isEmpty()) return null;
-        return member.getRoles().stream()
-                .filter(selectedRoles::contains)
-                .findFirst().orElse(null);
-    }
+    // Role resolution — delegate to RoleResolver (extracted from god class)
+    public List<Role> getSelectedRoles(Member member) { return RoleResolver.getSelectedRoles(member); }
+    public Role getTopSelectedRole(Member member) { return RoleResolver.getTopSelectedRole(member); }
 
     public Map<String, String> getGroupSynchronizables() {
         HashMap<String, String> map = new HashMap<>();
@@ -2272,7 +1822,7 @@ public class DiscordSRV extends JavaPlugin {
                 : getMainChatChannel();
     }
     public TextChannel getOptionalTextChannel(String gameChannel) {
-        return getDestinationTextChannelForGameChannelName(getOptionalChannel(gameChannel));
+        return channelRouter.getOptionalTextChannel(gameChannel);
     }
 
     @SuppressWarnings("LombokGetterMayBeUsed")
