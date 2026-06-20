@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -166,8 +167,8 @@ public class WebhookUtil {
             username = MessageUtil.strip(username);
 
             for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getGameRegexes().entrySet()) {
-                username = entry.getKey().matcher(username).replaceAll(entry.getValue());
-                chatMessage = entry.getKey().matcher(chatMessage).replaceAll(entry.getValue());
+                username = entry.getKey().matcher(username).replaceAll(Matcher.quoteReplacement(entry.getValue()));
+                chatMessage = entry.getKey().matcher(chatMessage).replaceAll(Matcher.quoteReplacement(entry.getValue()));
 
                 if (StringUtils.isBlank(username)) {
                     DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not processing Minecraft message because the webhook username was cleared by a filter: " + entry.getKey().pattern());
@@ -308,7 +309,7 @@ public class WebhookUtil {
                 if (editMessageId == null) {
                     String webName = webhookName;
                     for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getWebhookUsernameRegexes().entrySet()) {
-                        webName = entry.getKey().matcher(webName).replaceAll(entry.getValue());
+                        webName = entry.getKey().matcher(webName).replaceAll(Matcher.quoteReplacement(entry.getValue()));
                     }
 
                     // Handle Discord banned words in a way that isn't against their developer policy

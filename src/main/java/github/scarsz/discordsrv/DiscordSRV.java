@@ -127,6 +127,7 @@ import java.util.concurrent.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -1309,6 +1310,14 @@ public class DiscordSRV extends JavaPlugin {
         File metricsFile = new File(getDataFolder(), "metrics.json");
         if (metricsFile.exists() && !metricsFile.delete()) metricsFile.deleteOnExit();
 
+        // set ready status BEFORE the first group sync so downstream consumers
+        // (NicknameUpdater, RequireLinkModule, etc.) checking DiscordSRV.isReady
+        // don't skip work during the initial resync. Upstream issue #1754.
+        if (jda != null && jda.getStatus() == JDA.Status.CONNECTED) {
+            isReady = true;
+            api.callEvent(new DiscordReadyEvent());
+        }
+
         // start the group synchronization task
         if (isGroupRoleSynchronizationEnabled()) {
             int cycleTime = DiscordSRV.config().getInt("GroupRoleSynchronizationCycleTime") * 20 * 60;
@@ -1338,12 +1347,6 @@ public class DiscordSRV extends JavaPlugin {
         jda.addEventListener(alertListener);
         api.subscribe(alertListener);
         getServer().getPluginManager().registerEvents(alertListener, this);
-
-        // set ready status
-        if (jda.getStatus() == JDA.Status.CONNECTED) {
-            isReady = true;
-            api.callEvent(new DiscordReadyEvent());
-        }
     }
 
     @Override
@@ -1819,7 +1822,7 @@ public class DiscordSRV extends JavaPlugin {
 
     private String processRegex(String discordMessage) {
         for (Map.Entry<Pattern, String> entry : getGameRegexes().entrySet()) {
-            discordMessage = entry.getKey().matcher(discordMessage).replaceAll(entry.getValue());
+            discordMessage = entry.getKey().matcher(discordMessage).replaceAll(Matcher.quoteReplacement(entry.getValue()));
             if (StringUtils.isBlank(discordMessage)) {
                 DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD, "Not processing Minecraft message because it was cleared by a filter: " + entry.getKey().pattern());
                 return null;

@@ -64,9 +64,10 @@ public abstract class AbstractAccountLinkManager implements AccountLinkManager {
 
     private final Set<String> nagged = new HashSet<>();
     protected void ensureOffThread(boolean single) {
-        // Folia has no main thread; isPrimaryThread() is always false on Folia tick threads,
-        // so this nag never fires. Callers are expected to dispatch via SchedulerUtil.
-        if (!Bukkit.isPrimaryThread()) return;
+        // Folia has no main thread; isPrimaryThread() is always false on Folia tick threads.
+        // Use virtual-thread check as a proxy: if we're on a virtual thread, we're async-safe.
+        // If not virtual AND on primary thread (legacy Bukkit), fire the nag.
+        if (!Bukkit.isPrimaryThread() || Thread.currentThread().isVirtual()) return;
 
         StackTraceElement[] elements = Thread.currentThread().getStackTrace();
         String apiUser = elements[3].toString();

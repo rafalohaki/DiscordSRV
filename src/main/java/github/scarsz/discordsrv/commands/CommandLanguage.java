@@ -54,10 +54,21 @@ public class CommandLanguage {
         String currentLanguageName = StringUtils.capitalize(currentLanguage.getName().toLowerCase());
 
         Language targetLanguage = null;
+        // Upstream issue #1823: support multi-word language names (e.g. "Traditional Chinese")
+        // by joining all args and matching against the full language name, while still
+        // allowing single-word matching against the code or name.
+        String joinedArgs = args.length == 0 ? "" : String.join(" ", args).trim();
         outer:
-        for (String arg : args) {
-            for (Language language : Language.values()) {
-                if (language.getCode().equalsIgnoreCase(arg) || language.getName().equalsIgnoreCase(arg)) {
+        for (Language language : Language.values()) {
+            if (language.getCode().equalsIgnoreCase(joinedArgs)
+                    || language.getName().equalsIgnoreCase(joinedArgs)) {
+                targetLanguage = language;
+                break outer;
+            }
+            // also accept single-token matches for codes / single-word names
+            for (String arg : args) {
+                if (language.getCode().equalsIgnoreCase(arg)
+                        || language.getName().equalsIgnoreCase(arg)) {
                     targetLanguage = language;
                     break outer;
                 }

@@ -36,7 +36,7 @@ import net.dv8tion.jda.api.entities.channel.unions.*;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.Bukkit;
+
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -69,13 +69,15 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
         Set<String> onlineMemberIds = onlineMembers.stream().map(Member::getId).collect(Collectors.toSet());
         AccountLinkManager accountLinkManager = DiscordSRV.getPlugin().getAccountLinkManager();
         Supplier<Set<String>> linkedAccounts = () -> {
-            // On Folia every tick thread is unsafe for blocking I/O, equivalent to Bukkit's main thread.
-            boolean unsafeForBlocking = Bukkit.isPrimaryThread();
+            // On Folia, PlaceholderAPI can be called from any region thread — there is no safe
+            // way to detect "tick thread" via Bukkit.isPrimaryThread() (always false on Folia).
+            // Conservative: if not on a virtual thread, assume we might be on a tick thread.
+            boolean unsafeForBlocking = !Thread.currentThread().isVirtual();
             if (accountLinkManager instanceof JdbcAccountLinkManager && unsafeForBlocking) {
                 // not permitted
                 long currentTime = System.currentTimeMillis();
                 if (lastIssue + TimeUnit.SECONDS.toMillis(10) < currentTime) {
-                    DiscordSRV.warning("The %discordsrv_linked_online% placeholder was requested via PlaceholderAPI on a tick thread while JDBC is enabled, this is unsupported");
+                    DiscordSRV.warning("The %discordsrv_linked_online% placeholder was requested via PlaceholderAPI on a potentially blocking thread while JDBC is enabled, this is unsupported");
                     lastIssue = currentTime;
                 }
                 return Collections.emptySet();
@@ -147,8 +149,9 @@ public class PlaceholderAPIExpansion extends PlaceholderExpansion {
 
         if (player == null) return "";
 
-        // On Folia every tick thread is unsafe for blocking I/O — fall back to the cache there too.
-        String userId = Bukkit.isPrimaryThread()
+        // On Folia, PlaceholderAPI can be called from region threads. Use cache-only path
+        // when not on a virtual thread (conservative: assume non-virtual = potentially tick thread).
+        String userId = !Thread.currentThread().isVirtual()
                         ? accountLinkManager.getDiscordIdFromCache(player.getUniqueId())
                         : accountLinkManager.getDiscordId(player.getUniqueId());
         switch (identifier) {

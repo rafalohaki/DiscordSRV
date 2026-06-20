@@ -330,10 +330,12 @@ public class MessageUtil {
      * @param adventureMessage the message to send
      */
     public static void sendMessage(Iterable<? extends CommandSender> commandSenders, Component adventureMessage) {
+        // On Paper/Folia 26.x, CommandSender implements Audience natively — send directly
+        // without the BukkitAudiences adapter, which can fail on Folia's threaded model.
         Set<Audience> audiences = new HashSet<>();
         Set<Audience> degradedAudiences = new HashSet<>();
         commandSenders.forEach(sender -> {
-            Audience audience = getAudiences().sender(sender);
+            Audience audience = sender instanceof Audience a ? a : getAudiences().sender(sender);
             if (sender instanceof Player p && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible(p)) {
                 degradedAudiences.add(audience);
             } else {
@@ -353,7 +355,7 @@ public class MessageUtil {
             }
         } catch (NoClassDefFoundError e) {
             // might happen with 1.7
-            if (e.getMessage().equals("org/bukkit/command/ProxiedCommandSender")) {
+            if (e.getMessage() != null && e.getMessage().equals("org/bukkit/command/ProxiedCommandSender")) {
                 String legacy = toLegacy(adventureMessage);
                 commandSenders.forEach(sender -> sender.sendMessage(legacy));
                 DiscordSRV.debug(e);
@@ -361,6 +363,13 @@ public class MessageUtil {
             }
             DiscordSRV.error(e);
         } catch (Throwable t) {
+            // Last-resort fallback: send as legacy string
+            String legacy = toLegacy(adventureMessage);
+            commandSenders.forEach(sender -> {
+                try {
+                    sender.sendMessage(legacy);
+                } catch (Throwable ignored) {}
+            });
             DiscordSRV.error(t);
         }
     }

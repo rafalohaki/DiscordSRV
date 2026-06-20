@@ -55,6 +55,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DiscordChatListener extends ListenerAdapter {
@@ -209,7 +210,7 @@ public class DiscordChatListener extends ListenerAdapter {
 
         // apply regex filters
         for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getDiscordRegexes().entrySet()) {
-            message = entry.getKey().matcher(message).replaceAll(entry.getValue());
+            message = entry.getKey().matcher(message).replaceAll(Matcher.quoteReplacement(entry.getValue()));
             if (StringUtils.isBlank(message)) {
                 DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Not processing Discord message because it was cleared by a filter: " + entry.getKey().pattern());
                 return;
@@ -295,7 +296,7 @@ public class DiscordChatListener extends ListenerAdapter {
     private boolean handleMessageAddons(MessageReceivedEvent event, DiscordGuildMessagePreProcessEvent preEvent, List<Role> selectedRoles, Role topRole, String url) {
         // apply regex filters to url
         for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getDiscordRegexes().entrySet()) {
-            url = entry.getKey().matcher(url).replaceAll(entry.getValue());
+            url = entry.getKey().matcher(url).replaceAll(Matcher.quoteReplacement(entry.getValue()));
             if (StringUtils.isBlank(url)) {
                 DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Not processing Discord message addon because its URL was cleared by a filter: " + entry.getKey().pattern());
                 return false;
@@ -356,6 +357,12 @@ public class DiscordChatListener extends ListenerAdapter {
         Component component;
         if (originalFormatIsLegacy) {
             format = format.replace("%toprolecolor%", LegacyComponentSerializer.SECTION_CHAR + topRoleColor.asHexString());
+            // Upstream issue #1827: append a reset code at the end of the legacy format
+            // so the top-role color does not leak into subsequent messages/lines when the
+            // user's format string doesn't include an explicit §r.
+            if (!format.endsWith(String.valueOf(LegacyComponentSerializer.SECTION_CHAR) + "r")) {
+                format = format + LegacyComponentSerializer.SECTION_CHAR + "r";
+            }
             component = MessageUtil.toComponent(format, true)
                     .replaceText(
                             TextReplacementConfig.builder()
@@ -395,7 +402,7 @@ public class DiscordChatListener extends ListenerAdapter {
 
         // apply regex filters
         for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getDiscordRegexes().entrySet()) {
-            format = entry.getKey().matcher(format).replaceAll(entry.getValue());
+            format = entry.getKey().matcher(format).replaceAll(Matcher.quoteReplacement(entry.getValue()));
         }
 
         // translate legacy color codes, if any
@@ -438,6 +445,16 @@ public class DiscordChatListener extends ListenerAdapter {
         Component reserialized = MessageUtil.reserializeToMinecraftBasedOnConfig(message);
         message = MessageUtil.toPlain(reserialized, isLegacy);
         if (!isLegacy) message = MessageUtil.escapeMiniTokens(message);
+
+        // Upstream issue #1763: apply DiscordChatChannelDiscordFilters to reply content,
+        // same as the main message path does (see lines ~211-217).
+        for (Map.Entry<Pattern, String> entry : DiscordSRV.getPlugin().getDiscordRegexes().entrySet()) {
+            message = entry.getKey().matcher(message).replaceAll(Matcher.quoteReplacement(entry.getValue()));
+            if (StringUtils.isBlank(message)) {
+                DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Not processing Discord reply because it was cleared by a filter: " + entry.getKey().pattern());
+                return "";
+            }
+        }
 
         Function<String, String> escape = isLegacy
                 ? str -> str

@@ -205,7 +205,7 @@ public class DiscordUtil {
         }
 
         for (Map.Entry<Pattern, String> entry : patterns.entrySet()) {
-            message = entry.getKey().matcher(message).replaceAll(entry.getValue());
+            message = entry.getKey().matcher(message).replaceAll(Matcher.quoteReplacement(entry.getValue()));
         }
 
         return message;

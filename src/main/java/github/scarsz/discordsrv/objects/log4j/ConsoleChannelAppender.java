@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -199,7 +200,7 @@ public class ConsoleChannelAppender extends AbstractAppender {
         Map<Pattern, String> regexes = DiscordSRV.getPlugin().getConsoleRegexes();
         if (regexes != null) {
             for (Map.Entry<Pattern, String> entry : regexes.entrySet()) {
-                line = entry.getKey().matcher(line).replaceAll(entry.getValue());
+                line = entry.getKey().matcher(line).replaceAll(Matcher.quoteReplacement(entry.getValue()));
                 if (line.isEmpty()) return null;
             }
         }

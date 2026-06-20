@@ -28,26 +28,81 @@ import java.util.concurrent.TimeUnit;
 
 public abstract class HttpUtil {
 
+    /**
+     * Maximum number of attempts for transient HTTP failures (5xx / connect / read timeouts).
+     * Upstream issue #1700: a single 502 Bad Gateway from the update service would silently
+     * fail the update check. We now retry with exponential backoff.
+     */
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long BACKOFF_BASE_MS = 500L;
+
     private static HttpRequest setTimeout(HttpRequest httpRequest) {
         return httpRequest
                 .connectTimeout(Math.toIntExact(TimeUnit.SECONDS.toMillis(30)))
                 .readTimeout(Math.toIntExact(TimeUnit.SECONDS.toMillis(30)));
     }
 
+    /**
+     * @return true if the HTTP status code indicates a transient failure worth retrying
+     *         (5xx). 4xx and 2xx are not retried.
+     */
+    private static boolean isTransientStatus(HttpRequest request) {
+        int code = request.code();
+        return code / 100 == 5;
+    }
+
     public static String requestHttp(String requestUrl) {
-        try {
-            return setTimeout(HttpRequest.get(requestUrl)).body();
-        } catch (HttpRequest.HttpRequestException e) {
-            DiscordSRV.error(LangUtil.InternalMessage.HTTP_FAILED_TO_FETCH_URL + " " + requestUrl + ": " + e.getMessage());
-            return "";
+        HttpRequest.HttpRequestException lastException = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpRequest request = setTimeout(HttpRequest.get(requestUrl));
+                String body = request.body();
+                if (isTransientStatus(request) && attempt < MAX_ATTEMPTS) {
+                    DiscordSRV.debug("HTTP GET " + requestUrl + " returned " + request.code() + " (attempt " + attempt + "/" + MAX_ATTEMPTS + "), retrying");
+                    sleepBackoff(attempt);
+                    continue;
+                }
+                return body;
+            } catch (HttpRequest.HttpRequestException e) {
+                lastException = e;
+                if (attempt < MAX_ATTEMPTS) {
+                    DiscordSRV.debug("HTTP GET " + requestUrl + " failed (attempt " + attempt + "/" + MAX_ATTEMPTS + "): " + e.getMessage() + ", retrying");
+                    sleepBackoff(attempt);
+                }
+            }
         }
+        DiscordSRV.error(LangUtil.InternalMessage.HTTP_FAILED_TO_FETCH_URL + " " + requestUrl + ": " + (lastException != null ? lastException.getMessage() : "transient HTTP failure"));
+        return "";
     }
 
     public static void downloadFile(String requestUrl, File destination) {
+        HttpRequest.HttpRequestException lastException = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpRequest request = setTimeout(HttpRequest.get(requestUrl));
+                request.receive(destination);
+                if (isTransientStatus(request) && attempt < MAX_ATTEMPTS) {
+                    DiscordSRV.debug("HTTP download " + requestUrl + " returned " + request.code() + " (attempt " + attempt + "/" + MAX_ATTEMPTS + "), retrying");
+                    sleepBackoff(attempt);
+                    continue;
+                }
+                return;
+            } catch (HttpRequest.HttpRequestException e) {
+                lastException = e;
+                if (attempt < MAX_ATTEMPTS) {
+                    DiscordSRV.debug("HTTP download " + requestUrl + " failed (attempt " + attempt + "/" + MAX_ATTEMPTS + "): " + e.getMessage() + ", retrying");
+                    sleepBackoff(attempt);
+                }
+            }
+        }
+        DiscordSRV.error(LangUtil.InternalMessage.HTTP_FAILED_TO_DOWNLOAD_URL + " " + requestUrl + ": " + (lastException != null ? lastException.getMessage() : "transient HTTP failure"));
+    }
+
+    private static void sleepBackoff(int attempt) {
         try {
-            setTimeout(HttpRequest.get(requestUrl)).receive(destination);
-        } catch (HttpRequest.HttpRequestException e) {
-            DiscordSRV.error(LangUtil.InternalMessage.HTTP_FAILED_TO_DOWNLOAD_URL + " " + requestUrl + ": " + e.getMessage());
+            Thread.sleep(BACKOFF_BASE_MS * (1L << (attempt - 1))); // 500ms, 1000ms, 2000ms...
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 
