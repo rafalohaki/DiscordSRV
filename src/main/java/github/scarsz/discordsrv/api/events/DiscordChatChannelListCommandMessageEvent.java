@@ -20,6 +20,7 @@
 
 package github.scarsz.discordsrv.api.events;
 
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -39,7 +40,7 @@ public class DiscordChatChannelListCommandMessageEvent extends Event {
 
     private Result result;
 
-    private final TextChannel channel;
+    private final net.dv8tion.jda.api.entities.TextChannel channel;
     private final Guild guild;
     private final String message;
     private final MessageReceivedEvent triggeringJDAEvent;
@@ -48,7 +49,7 @@ public class DiscordChatChannelListCommandMessageEvent extends Event {
     private int expiration;
 
     public DiscordChatChannelListCommandMessageEvent(TextChannel channel, Guild guild, String message, MessageReceivedEvent triggeringJDAEvent, String playerListMessage, int expiration, Result result) {
-        this.channel = channel;
+        this.channel = LegacyChannelProxy.wrap(channel);
         this.guild = guild;
         this.message = message;
         this.triggeringJDAEvent = triggeringJDAEvent;
@@ -61,7 +62,10 @@ public class DiscordChatChannelListCommandMessageEvent extends Event {
         return this.result;
     }
 
-    public TextChannel getChannel() {
+    /**
+     * Returns the channel as a legacy proxy for binary compatibility with plugins compiled against JDA 4/5.
+     */
+    public net.dv8tion.jda.api.entities.TextChannel getChannel() {
         return this.channel;
     }
 

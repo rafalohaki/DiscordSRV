@@ -63,6 +63,7 @@ import github.scarsz.discordsrv.util.*;
 import lombok.Getter;
 import net.dv8tion.jda.api.*;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.*;
 import net.dv8tion.jda.api.entities.channel.middleman.*;
 import net.dv8tion.jda.api.entities.channel.unions.*;

@@ -20,6 +20,7 @@
 
 package github.scarsz.discordsrv.api.events;
 
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
@@ -32,18 +33,21 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 @SuppressWarnings("LombokGetterMayBeUsed")
 public class DiscordGuildMessageSentEvent extends DiscordEvent {
 
-    private final TextChannel channel;
+    private final net.dv8tion.jda.api.entities.TextChannel channel;
     private final Guild guild;
     private final Message message;
 
     public DiscordGuildMessageSentEvent(JDA jda, Message message) {
         super(jda);
-        this.channel = message.getChannel().asTextChannel();
+        this.channel = LegacyChannelProxy.wrap(message.getChannel().asTextChannel());
         this.guild = message.getGuild();
         this.message = message;
     }
 
-    public TextChannel getChannel() {
+    /**
+     * Returns the channel as a legacy proxy for binary compatibility with plugins compiled against JDA 4/5.
+     */
+    public net.dv8tion.jda.api.entities.TextChannel getChannel() {
         return this.channel;
     }
 

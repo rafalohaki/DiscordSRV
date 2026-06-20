@@ -21,6 +21,7 @@
 package github.scarsz.discordsrv.api.events;
 
 import github.scarsz.discordsrv.api.Cancellable;
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import github.scarsz.discordsrv.util.MessageUtil;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.entities.channel.concrete.*;
@@ -43,7 +44,7 @@ public class DiscordGuildMessagePostProcessEvent extends DiscordEvent<MessageRec
     private boolean cancelled;
 
     private final User author;
-    private final TextChannel channel;
+    private final net.dv8tion.jda.api.entities.TextChannel channel;
     private final Guild guild;
     private final Member member;
     private final Message message;
@@ -54,7 +55,7 @@ public class DiscordGuildMessagePostProcessEvent extends DiscordEvent<MessageRec
     public DiscordGuildMessagePostProcessEvent(MessageReceivedEvent jdaEvent, boolean cancelled, String processedMessage) {
         super(jdaEvent.getJDA(), jdaEvent);
         this.author = jdaEvent.getAuthor();
-        this.channel = jdaEvent.getChannel().asTextChannel();
+        this.channel = LegacyChannelProxy.wrap(jdaEvent.getChannel().asTextChannel());
         this.guild = jdaEvent.getGuild();
         this.member = jdaEvent.getMember();
         this.message = jdaEvent.getMessage();
@@ -66,7 +67,7 @@ public class DiscordGuildMessagePostProcessEvent extends DiscordEvent<MessageRec
     public DiscordGuildMessagePostProcessEvent(MessageReceivedEvent jdaEvent, boolean cancelled, Component minecraftMessage) {
         super(jdaEvent.getJDA(), jdaEvent);
         this.author = jdaEvent.getAuthor();
-        this.channel = jdaEvent.getChannel().asTextChannel();
+        this.channel = LegacyChannelProxy.wrap(jdaEvent.getChannel().asTextChannel());
         this.guild = jdaEvent.getGuild();
         this.member = jdaEvent.getMember();
         this.message = jdaEvent.getMessage();
@@ -93,7 +94,10 @@ public class DiscordGuildMessagePostProcessEvent extends DiscordEvent<MessageRec
         return this.author;
     }
 
-    public TextChannel getChannel() {
+    /**
+     * Returns the channel as a legacy proxy for binary compatibility with plugins compiled against JDA 4/5.
+     */
+    public net.dv8tion.jda.api.entities.TextChannel getChannel() {
         return this.channel;
     }
 

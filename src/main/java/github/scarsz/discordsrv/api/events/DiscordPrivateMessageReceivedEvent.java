@@ -20,6 +20,7 @@
 
 package github.scarsz.discordsrv.api.events;
 
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.PrivateChannel;
 import net.dv8tion.jda.api.entities.User;
@@ -32,13 +33,13 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 public class DiscordPrivateMessageReceivedEvent extends DiscordEvent<MessageReceivedEvent> {
 
     private final User author;
-    private final PrivateChannel channel;
+    private final net.dv8tion.jda.api.entities.PrivateChannel channel;
     private final Message message;
 
     public DiscordPrivateMessageReceivedEvent(MessageReceivedEvent jdaEvent) {
         super(jdaEvent.getJDA(), jdaEvent);
         this.author = jdaEvent.getAuthor();
-        this.channel = jdaEvent.getChannel().asPrivateChannel();
+        this.channel = LegacyChannelProxy.wrap(jdaEvent.getChannel().asPrivateChannel());
         this.message = jdaEvent.getMessage();
     }
 
@@ -46,7 +47,10 @@ public class DiscordPrivateMessageReceivedEvent extends DiscordEvent<MessageRece
         return this.author;
     }
 
-    public PrivateChannel getChannel() {
+    /**
+     * Returns the channel as a legacy proxy for binary compatibility with plugins compiled against JDA 4/5.
+     */
+    public net.dv8tion.jda.api.entities.PrivateChannel getChannel() {
         return this.channel;
     }
 

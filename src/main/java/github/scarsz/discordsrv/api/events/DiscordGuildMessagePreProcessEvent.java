@@ -21,6 +21,7 @@
 package github.scarsz.discordsrv.api.events;
 
 import github.scarsz.discordsrv.api.Cancellable;
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.entities.channel.concrete.*;
 import net.dv8tion.jda.api.entities.channel.middleman.*;
@@ -37,7 +38,7 @@ public class DiscordGuildMessagePreProcessEvent extends DiscordEvent<MessageRece
     private boolean cancelled;
 
     private final User author;
-    private final TextChannel channel;
+    private final net.dv8tion.jda.api.entities.TextChannel channel;
     private final Guild guild;
     private final Member member;
     private final Message message;
@@ -45,7 +46,7 @@ public class DiscordGuildMessagePreProcessEvent extends DiscordEvent<MessageRece
     public DiscordGuildMessagePreProcessEvent(MessageReceivedEvent jdaEvent) {
         super(jdaEvent.getJDA(), jdaEvent);
         this.author = jdaEvent.getAuthor();
-        this.channel = jdaEvent.getChannel().asTextChannel();
+        this.channel = LegacyChannelProxy.wrap(jdaEvent.getChannel().asTextChannel());
         this.guild = jdaEvent.getGuild();
         this.member = jdaEvent.getMember();
         this.message = jdaEvent.getMessage();
@@ -59,7 +60,12 @@ public class DiscordGuildMessagePreProcessEvent extends DiscordEvent<MessageRece
         return this.author;
     }
 
-    public TextChannel getChannel() {
+    /**
+     * Returns the channel as a legacy {@code net.dv8tion.jda.api.entities.TextChannel}
+     * proxy for binary compatibility with plugins compiled against JDA 4/5.
+     * The proxy delegates all method calls to the real JDA 6 TextChannel.
+     */
+    public net.dv8tion.jda.api.entities.TextChannel getChannel() {
         return this.channel;
     }
 

@@ -35,6 +35,7 @@ import github.scarsz.discordsrv.hooks.chat.TownyChatHook;
 import github.scarsz.discordsrv.listeners.DiscordDisconnectListener;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.*;
 import net.dv8tion.jda.api.entities.channel.middleman.*;
 import net.dv8tion.jda.api.entities.channel.unions.*;

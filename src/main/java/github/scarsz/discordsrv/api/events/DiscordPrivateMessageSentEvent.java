@@ -20,6 +20,7 @@
 
 package github.scarsz.discordsrv.api.events;
 
+import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.PrivateChannel;
@@ -31,18 +32,21 @@ import net.dv8tion.jda.api.entities.User;
 @SuppressWarnings("LombokGetterMayBeUsed")
 public class DiscordPrivateMessageSentEvent extends DiscordEvent {
 
-    private final PrivateChannel channel;
+    private final net.dv8tion.jda.api.entities.PrivateChannel channel;
     private final Message message;
     private final User recipient;
 
     public DiscordPrivateMessageSentEvent(JDA jda, Message message) {
         super(jda);
-        this.channel = message.getChannel().asPrivateChannel();
+        this.channel = LegacyChannelProxy.wrap(message.getChannel().asPrivateChannel());
         this.message = message;
         this.recipient = channel.getUser();
     }
 
-    public PrivateChannel getChannel() {
+    /**
+     * Returns the channel as a legacy proxy for binary compatibility with plugins compiled against JDA 4/5.
+     */
+    public net.dv8tion.jda.api.entities.PrivateChannel getChannel() {
         return this.channel;
     }
 
