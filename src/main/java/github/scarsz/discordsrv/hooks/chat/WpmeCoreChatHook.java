@@ -24,12 +24,8 @@ import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.PluginUtil;
 import github.scarsz.discordsrv.util.PlayerUtil;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.jetbrains.annotations.NotNull;
@@ -40,32 +36,26 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * ChatHook for the WpmeCore Chat addon — bidirectional bridge between
- * DiscordSRV and WpmeCore's channel system.
+ * ChatHook for the WpmeCore Chat addon — handles Discord → Minecraft only.
  *
- * <h2>Discord → Minecraft</h2>
- * {@link #broadcastMessageToChannel} delegates to the default {@link ChatHook}
- * pipeline, which delivers the formatted component to each online player via
+ * <p>When registered, DiscordSRV delegates Discord→MC message delivery to
+ * {@link #broadcastMessageToChannel} (inherited from {@link ChatHook}),
+ * which delivers the formatted component to each online player via
  * {@code player.getScheduler().run()} (Folia-safe). Recipients are resolved
  * from WpmeCore's {@code ChannelService} when the channel name maps to a
  * configured WpmeCore channel; otherwise all online players receive the
  * message.
  *
- * <h2>Minecraft → Discord</h2>
- * {@link #onChat} listens to {@link AsyncChatEvent} at {@link EventPriority#MONITOR}
- * and forwards the plain-text message to DiscordSRV via
- * {@code processChatMessage}. This is the standard ChatHook pattern (see
- * ChattyChatHook, VentureChatHook) — DiscordSRV skips registering its own
- * {@code ModernPlayerChatListener} when a ChatHook is present, so the hook
- * MUST handle MC→Discord or no messages will be relayed.
+ * <p><b>MC → Discord is NOT handled here.</b> DiscordSRV shades Adventure
+ * under {@code github.scarsz.discordsrv.dependencies.kyori.adventure.*},
+ * which makes {@code AsyncChatEvent.message()} return an incompatible
+ * {@code Component} type at runtime ({@code NoSuchMethodError}). MC→Discord
+ * is handled by the Chat addon's {@code DiscordSrvBridge}, which runs in
+ * the Chat plugin's classloader where Adventure is NOT relocated.
  *
- * <p><b>Private-channel filtering:</b> messages routed to proximity-local
- * ({@code Channel.isLocal()}), world-scoped ({@code Channel.worldScoped()}),
- * or permission-gated ({@code Channel.permission() != null}) channels are
- * NOT forwarded to Discord. These channels are semi-private and relaying
- * them to a public Discord channel would leak private conversations. Uses
- * {@code ChannelService.lastRoutedChannel(UUID)} so one-shot alias quick-chat
- * (e.g. {@code "!hi"} → local) is correctly filtered.
+ * <p>Because this hook is registered as a {@link ChatHook}, DiscordSRV
+ * skips registering its own {@code ModernPlayerChatListener} (line 1045
+ * of DiscordSRV.java). The {@code DiscordSrvBridge} fills that gap.
  *
  * <p>Soft-dep: uses the Bukkit {@code ServicesManager} to look up
  * {@code ChannelService} at runtime — no compile-time dependency on WpmeCore.
@@ -74,59 +64,6 @@ public class WpmeCoreChatHook implements ChatHook {
 
     /** WpmeCore ChannelService class name (looked up via ServicesManager). */
     private static final String CHANNEL_SERVICE_CLASS = "org.rafalohaki.wpmecore.api.channel.ChannelService";
-
-    // ────────────────── Minecraft → Discord ──────────────────
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onChat(@NotNull AsyncChatEvent event) {
-        Player sender = event.getPlayer();
-
-        // Private-channel filter: skip forwarding if the routed channel is
-        // local / world-scoped / permission-gated. lastRoutedChannel captures
-        // alias quick-chat routes that activeChannel misses.
-        Object channelService = lookupChannelService();
-        if (channelService != null && isPrivateRoutedChannel(channelService, sender.getUniqueId())) {
-            DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD,
-                    "WpmeCoreChatHook: skipping MC→Discord forward for " + sender.getName()
-                            + " — message was routed to a private channel");
-            return;
-        }
-
-        String plain = PlainTextComponentSerializer.plainText().serialize(event.message());
-        // Channel = null lets DiscordSRV use its default channel mapping.
-        DiscordSRV.getPlugin().processChatMessage(sender, plain, null, false, event);
-    }
-
-    /**
-     * Check if the player's last routed channel is private (local,
-     * world-scoped, or permission-gated). Uses reflection on
-     * {@code ChannelService.lastRoutedChannel(UUID)} to avoid a
-     * compile-time dependency on WpmeCore.
-     */
-    private boolean isPrivateRoutedChannel(@NotNull Object channelService, @NotNull UUID playerId) {
-        try {
-            Object routedOpt = channelService.getClass()
-                    .getMethod("lastRoutedChannel", UUID.class)
-                    .invoke(channelService, playerId);
-            if (routedOpt == null) return false;
-            boolean present = (boolean) routedOpt.getClass().getMethod("isPresent").invoke(routedOpt);
-            if (!present) return false;
-            Object channel = routedOpt.getClass().getMethod("get").invoke(routedOpt);
-            // Channel.isLocal() — radius > 0
-            boolean isLocal = (boolean) channel.getClass().getMethod("isLocal").invoke(channel);
-            // Channel.worldScoped()
-            boolean worldScoped = (boolean) channel.getClass().getMethod("worldScoped").invoke(channel);
-            // Channel.permission() — may be null
-            Object permission = channel.getClass().getMethod("permission").invoke(channel);
-            return isLocal || worldScoped || permission != null;
-        } catch (Throwable t) {
-            DiscordSRV.debug(Debug.MINECRAFT_TO_DISCORD,
-                    "WpmeCoreChatHook: failed to check lastRoutedChannel: " + t.getMessage());
-            return false;
-        }
-    }
-
-    // ────────────────── Discord → Minecraft ──────────────────
 
     @Override
     public @Nullable ChannelInfo resolveChannel(String channelName) {
@@ -170,8 +107,6 @@ public class WpmeCoreChatHook implements ChatHook {
         List<Player> recipients = new ArrayList<>(PlayerUtil.getOnlinePlayers(false));
         return new ChannelInfo("Global", null, "", recipients);
     }
-
-    // ────────────────── Hook lifecycle ──────────────────
 
     @Override
     public Plugin getPlugin() {
