@@ -88,6 +88,7 @@ import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.format.NamedTextColor;
 import okhttp3.*;
 import okhttp3.internal.tls.OkHostnameVerifier;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -103,7 +104,6 @@ import org.bstats.charts.DrilldownPie;
 import org.bstats.charts.SimplePie;
 import org.bstats.charts.SingleLineChart;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Warning;
 import org.bukkit.command.Command;
@@ -402,10 +402,10 @@ public class DiscordSRV extends JavaPlugin {
         this.chatMessageProcessor = new ChatMessageProcessor(this);
 
         if (++DebugUtil.initializationCount > 1) {
-            DiscordSRV.error(ChatColor.RED + LangUtil.InternalMessage.PLUGIN_RELOADED.toString());
+            DiscordSRV.error(LangUtil.InternalMessage.PLUGIN_RELOADED.toString());
             PlayerUtil.getOnlinePlayers().stream()
                     .filter(player -> player.hasPermission("discordsrv.admin"))
-                    .forEach(player -> MessageUtil.sendMessage(player, ChatColor.RED + LangUtil.InternalMessage.PLUGIN_RELOADED.toString()));
+                    .forEach(player -> MessageUtil.sendMessage(player, Component.text(LangUtil.InternalMessage.PLUGIN_RELOADED.toString(), NamedTextColor.RED)));
         }
 
         ConfigUtil.migrate();

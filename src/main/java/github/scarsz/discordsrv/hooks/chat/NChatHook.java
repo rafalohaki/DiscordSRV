@@ -52,6 +52,7 @@ public class NChatHook implements ChatHook {
             String legacy = MessageUtil.toLegacy(message);
             String chatChannelCommand = chatChannel.getCommand();
             String chatChannelNickname = chatChannelCommand != null ? chatChannelCommand : Character.toString(chatChannel.getName().charAt(0));
+            // TODO: migrate ChatColor.getLastColors to Adventure legacy parsing
             String chatChannelColor = ChatColor.getLastColors(chatChannel.getFormat());
 
             String plainMessage = LangUtil.Message.CHAT_CHANNEL_MESSAGE.toString()

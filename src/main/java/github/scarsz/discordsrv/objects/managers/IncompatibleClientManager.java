@@ -23,7 +23,8 @@ package github.scarsz.discordsrv.objects.managers;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.SchedulerUtil;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -110,7 +111,7 @@ public class IncompatibleClientManager implements PluginMessageListener, Listene
         }
 
         // Skip Adventure for this in case the client can't even receive that
-        player.sendMessage(ChatColor.RED + LangUtil.InternalMessage.INCOMPATIBLE_CLIENT.toString().replace("{client}", client));
+        player.sendMessage(Component.text(LangUtil.InternalMessage.INCOMPATIBLE_CLIENT.toString().replace("{client}", client), NamedTextColor.RED));
 
         DiscordSRV.info(player.getName() + " was sent a notice for having a degraded user experience due to " + client
                                 + " (You can use EnableIncompatibleClientAlert to disable the message if you'd like (Not recommended))");

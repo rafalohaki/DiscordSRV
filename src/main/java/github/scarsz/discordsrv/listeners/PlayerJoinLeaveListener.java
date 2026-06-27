@@ -25,8 +25,9 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.managers.GroupSynchronizationManager;
 import github.scarsz.discordsrv.util.*;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -47,8 +48,8 @@ public class PlayerJoinLeaveListener implements Listener {
         // if player is OP & update is available tell them
         if (GamePermissionUtil.hasPermission(player, "discordsrv.updatenotification") && DiscordSRV.updateIsAvailable) {
             MessageUtil.sendMessage(player, DiscordSRV.getPlugin().getDescription().getVersion().endsWith("-SNAPSHOT")
-                    ? ChatColor.GRAY + "There is a newer development build of DiscordSRV available. Download it at https://snapshot.discordsrv.com/"
-                    : ChatColor.AQUA + "An update to DiscordSRV is available. Download it at https://modrinth.com/plugin/discordsrv/ or https://get.discordsrv.com"
+                    ? Component.text("There is a newer development build of DiscordSRV available. Download it at https://snapshot.discordsrv.com/", NamedTextColor.GRAY)
+                    : Component.text("An update to DiscordSRV is available. Download it at https://modrinth.com/plugin/discordsrv/ or https://get.discordsrv.com", NamedTextColor.AQUA)
             );
         }
 

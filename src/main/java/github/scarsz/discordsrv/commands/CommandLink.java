@@ -28,9 +28,9 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -77,7 +77,7 @@ public class CommandLink {
 
             if (offlinePlayer == null) offlinePlayer = Bukkit.getOfflinePlayer(minecraft);
             if (offlinePlayer == null) {
-                MessageUtil.sendMessage(sender, ChatColor.RED + "Minecraft player could not be found");
+                MessageUtil.sendMessage(sender, Component.text("Minecraft player could not be found", NamedTextColor.RED));
                 return;
             }
 
@@ -93,18 +93,18 @@ public class CommandLink {
             }
 
             if (user == null) {
-                MessageUtil.sendMessage(sender, ChatColor.RED + "Discord user could not be found");
+                MessageUtil.sendMessage(sender, Component.text("Discord user could not be found", NamedTextColor.RED));
                 return;
             }
 
             DiscordSRV.getPlugin().getAccountLinkManager().link(user.getId(), offlinePlayer.getUniqueId());
-            MessageUtil.sendMessage(sender, ChatColor.GREEN + "Linked together " + ChatColor.GOLD + offlinePlayer.getName()
-                    + ChatColor.GREEN + " and " + ChatColor.GOLD + user.getAsTag());
+            MessageUtil.sendMessage(sender, Component.text("Linked together ", NamedTextColor.GREEN).append(Component.text(offlinePlayer.getName(), NamedTextColor.GOLD))
+                    .append(Component.text(" and ", NamedTextColor.GREEN)).append(Component.text(user.getAsTag(), NamedTextColor.GOLD)));
             return;
         }
 
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + LangUtil.InternalMessage.PLAYER_ONLY_COMMAND.toString());
+            sender.sendMessage(Component.text(LangUtil.InternalMessage.PLAYER_ONLY_COMMAND.toString(), NamedTextColor.RED));
             return;
         }
         Player player = (Player) sender;

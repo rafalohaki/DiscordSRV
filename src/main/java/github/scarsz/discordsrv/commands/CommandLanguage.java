@@ -32,7 +32,6 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -75,8 +74,8 @@ public class CommandLanguage {
             }
         }
         if (targetLanguage == null) {
-            MessageUtil.sendMessage(sender, ChatColor.DARK_AQUA + "DiscordSRV is currently in " + currentLanguageName + ". " +
-                    "Change it by giving a language as an argument.");
+            MessageUtil.sendMessage(sender, Component.text("DiscordSRV is currently in " + currentLanguageName + ". " +
+                    "Change it by giving a language as an argument.", NamedTextColor.DARK_AQUA));
             return;
         }
         String targetLanguageName = StringUtils.capitalize(targetLanguage.getName().toLowerCase());
@@ -86,8 +85,8 @@ public class CommandLanguage {
                     .filter(DiscordSRV.config()::isLanguageAvailable)
                     .map(language -> StringUtils.capitalize(language.getName().toLowerCase()))
                     .collect(Collectors.joining(", "));
-            MessageUtil.sendMessage(sender, ChatColor.DARK_AQUA + "DiscordSRV does not have a translation for " + targetLanguageName + ". " +
-                    "Supported languages are as follows: " + available + ".");
+            MessageUtil.sendMessage(sender, Component.text("DiscordSRV does not have a translation for " + targetLanguageName + ". " +
+                    "Supported languages are as follows: " + available + ".", NamedTextColor.DARK_AQUA));
             return;
         }
 
@@ -121,7 +120,7 @@ public class CommandLanguage {
                 }
             }
 
-            MessageUtil.sendMessage(sender, ChatColor.DARK_AQUA + "DiscordSRV language successfully changed to " + targetLanguageName + ".");
+            MessageUtil.sendMessage(sender, Component.text("DiscordSRV language successfully changed to " + targetLanguageName + ".", NamedTextColor.DARK_AQUA));
         }
     }
 

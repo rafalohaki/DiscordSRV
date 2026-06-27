@@ -26,7 +26,6 @@ import github.scarsz.discordsrv.objects.MessageFormat;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.ChatColor;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -39,7 +38,7 @@ public class MessageFormatResolver {
         LangUtil.Message format = !selectedRoles.isEmpty() ? LangUtil.Message.CHAT_TO_MINECRAFT : LangUtil.Message.CHAT_TO_MINECRAFT_NO_ROLE;
 
         return DiscordSRV.config().getOptionalString(format.getKeyName() + "_" + channel)
-                .map(s -> ChatColor.translateAlternateColorCodes('&', s))
+                .map(MessageUtil::translateLegacy)
                 .orElseGet(format::toString);
     }
 

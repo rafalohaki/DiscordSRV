@@ -24,7 +24,9 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.GamePermissionUtil;
 import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.command.CommandSender;
 
 import java.lang.reflect.Method;
@@ -33,19 +35,22 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class CommandHelp {
 
-    private static List<ChatColor> disallowedChatColorCharacters = new ArrayList<ChatColor>() {{
-        add(ChatColor.BLACK);
-        add(ChatColor.DARK_BLUE);
-        add(ChatColor.GRAY);
-        add(ChatColor.DARK_GRAY);
-        add(ChatColor.WHITE);
-        add(ChatColor.MAGIC);
-        add(ChatColor.BOLD);
-        add(ChatColor.STRIKETHROUGH);
-        add(ChatColor.UNDERLINE);
-        add(ChatColor.ITALIC);
-        add(ChatColor.RESET);
-    }};
+    private static final List<NamedTextColor> allNamedTextColors = Arrays.asList(
+            NamedTextColor.BLACK, NamedTextColor.DARK_BLUE, NamedTextColor.DARK_GREEN,
+            NamedTextColor.DARK_AQUA, NamedTextColor.DARK_RED, NamedTextColor.DARK_PURPLE,
+            NamedTextColor.GOLD, NamedTextColor.GRAY, NamedTextColor.DARK_GRAY,
+            NamedTextColor.BLUE, NamedTextColor.GREEN, NamedTextColor.AQUA,
+            NamedTextColor.RED, NamedTextColor.LIGHT_PURPLE, NamedTextColor.YELLOW,
+            NamedTextColor.WHITE
+    );
+
+    private static final Set<NamedTextColor> disallowedChatColorCharacters = new HashSet<>(Arrays.asList(
+            NamedTextColor.BLACK,
+            NamedTextColor.DARK_BLUE,
+            NamedTextColor.GRAY,
+            NamedTextColor.DARK_GRAY,
+            NamedTextColor.WHITE
+    ));
 
     @Command(commandNames = { "?", "help" },
             helpMessage = "Shows command help for DiscordSRV's commands",
@@ -61,26 +66,26 @@ public class CommandHelp {
     }
 
     private static void help(CommandSender sender) {
-        ChatColor titleColor = ChatColor.RESET, commandColor = ChatColor.RESET;
+        NamedTextColor titleColor = NamedTextColor.BLACK, commandColor = NamedTextColor.BLACK;
         while (disallowedChatColorCharacters.contains(titleColor))
-            titleColor = ChatColor.values()[ThreadLocalRandom.current().nextInt(ChatColor.values().length)];
+            titleColor = allNamedTextColors.get(ThreadLocalRandom.current().nextInt(allNamedTextColors.size()));
         while (disallowedChatColorCharacters.contains(commandColor) || commandColor == titleColor)
-            commandColor = ChatColor.values()[ThreadLocalRandom.current().nextInt(ChatColor.values().length)];
+            commandColor = allNamedTextColors.get(ThreadLocalRandom.current().nextInt(allNamedTextColors.size()));
 
         List<Method> commandMethods = new ArrayList<>();
         for (Method method : DiscordSRV.getPlugin().getCommandManager().getCommands().values())
             if (!commandMethods.contains(method)) commandMethods.add(method);
 
-        MessageUtil.sendMessage(sender, ChatColor.DARK_GRAY + "================[ " + titleColor + "DiscordSRV" + ChatColor.DARK_GRAY + " ]================");
+        MessageUtil.sendMessage(sender, Component.text("================[ ", NamedTextColor.DARK_GRAY).append(Component.text("DiscordSRV", titleColor)).append(Component.text(" ]================", NamedTextColor.DARK_GRAY)));
         for (Method commandMethod : commandMethods) {
             Command commandAnnotation = commandMethod.getAnnotation(Command.class);
 
             // make sure sender has permission to run the commands before showing them permissions for it
             if (!GamePermissionUtil.hasPermission(sender, commandAnnotation.permission())) continue;
 
-            MessageUtil.sendMessage(sender, ChatColor.GRAY + "- " + commandColor + "/discord " + String.join("/", commandAnnotation.commandNames()));
-            MessageUtil.sendMessage(sender, "    " + ChatColor.ITALIC + commandAnnotation.helpMessage());
-            if (!commandAnnotation.usageExample().equals("")) MessageUtil.sendMessage(sender, "    " + ChatColor.GRAY + ChatColor.ITALIC + "ex. /discord " + commandAnnotation.usageExample());
+            MessageUtil.sendMessage(sender, Component.text("- ", NamedTextColor.GRAY).append(Component.text("/discord " + String.join("/", commandAnnotation.commandNames()), commandColor)));
+            MessageUtil.sendMessage(sender, Component.text("    ").append(Component.text(commandAnnotation.helpMessage()).decorate(TextDecoration.ITALIC)));
+            if (!commandAnnotation.usageExample().equals("")) MessageUtil.sendMessage(sender, Component.text("    ").append(Component.text("ex. /discord " + commandAnnotation.usageExample(), NamedTextColor.GRAY).decorate(TextDecoration.ITALIC)));
         }
     }
 
@@ -90,11 +95,11 @@ public class CommandHelp {
      * @param commands
      */
     private static void help(CommandSender sender, List<String> commands) {
-        ChatColor titleColor = ChatColor.RESET, commandColor = ChatColor.RESET;
+        NamedTextColor titleColor = NamedTextColor.BLACK, commandColor = NamedTextColor.BLACK;
         while (disallowedChatColorCharacters.contains(titleColor))
-            titleColor = ChatColor.values()[ThreadLocalRandom.current().nextInt(ChatColor.values().length - 1)];
+            titleColor = allNamedTextColors.get(ThreadLocalRandom.current().nextInt(allNamedTextColors.size()));
         while (disallowedChatColorCharacters.contains(commandColor) || commandColor == titleColor)
-            commandColor = ChatColor.values()[ThreadLocalRandom.current().nextInt(ChatColor.values().length - 1)];
+            commandColor = allNamedTextColors.get(ThreadLocalRandom.current().nextInt(allNamedTextColors.size()));
 
         List<Method> commandMethodsList = new LinkedList<>();
         Map<String, Method> commandMethods = DiscordSRV.getPlugin().getCommandManager().getCommands();
@@ -109,16 +114,16 @@ public class CommandHelp {
             return;
         }
 
-        MessageUtil.sendMessage(sender, ChatColor.DARK_GRAY + "===================[ " + titleColor + "DiscordSRV" + ChatColor.DARK_GRAY + " ]===================");
+        MessageUtil.sendMessage(sender, Component.text("===================[ ", NamedTextColor.DARK_GRAY).append(Component.text("DiscordSRV", titleColor)).append(Component.text(" ]===================", NamedTextColor.DARK_GRAY)));
         for (Method commandMethod : commandMethodsList) {
             Command commandAnnotation = commandMethod.getAnnotation(Command.class);
 
             // make sure sender has permission to run the commands before showing them permissions for it
             if (!GamePermissionUtil.hasPermission(sender, commandAnnotation.permission())) continue;
 
-            MessageUtil.sendMessage(sender, ChatColor.GRAY + "- " + commandColor + "/discord " + String.join("/", commandAnnotation.commandNames()));
-            MessageUtil.sendMessage(sender, "   " + ChatColor.ITALIC + commandAnnotation.helpMessage());
-            if (!commandAnnotation.usageExample().equals("")) MessageUtil.sendMessage(sender, "   " + ChatColor.GRAY + ChatColor.ITALIC + "ex. /discord " + commandAnnotation.usageExample());
+            MessageUtil.sendMessage(sender, Component.text("- ", NamedTextColor.GRAY).append(Component.text("/discord " + String.join("/", commandAnnotation.commandNames()), commandColor)));
+            MessageUtil.sendMessage(sender, Component.text("   ").append(Component.text(commandAnnotation.helpMessage()).decorate(TextDecoration.ITALIC)));
+            if (!commandAnnotation.usageExample().equals("")) MessageUtil.sendMessage(sender, Component.text("   ").append(Component.text("ex. /discord " + commandAnnotation.usageExample(), NamedTextColor.GRAY).decorate(TextDecoration.ITALIC)));
         }
     }
 

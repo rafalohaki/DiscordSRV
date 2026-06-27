@@ -27,9 +27,10 @@ import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.SchedulerUtil;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -52,7 +53,7 @@ public class CommandUnlink {
     private static void executeAsync(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player)) {
-                MessageUtil.sendMessage(sender, ChatColor.RED + LangUtil.InternalMessage.NO_UNLINK_TARGET_SPECIFIED.toString());
+                MessageUtil.sendMessage(sender, Component.text(LangUtil.InternalMessage.NO_UNLINK_TARGET_SPECIFIED.toString(), NamedTextColor.RED));
                 return;
             }
 
@@ -157,13 +158,13 @@ public class CommandUnlink {
 
                             int remaining = matches.size() - 5;
                             if (remaining >= 1) {
-                                MessageUtil.sendMessage(sender, String.format("%s+%s%d%s more result%s...",
-                                        ChatColor.AQUA, ChatColor.WHITE, remaining, ChatColor.AQUA,
-                                        remaining > 1 ? "s" : "")
+                                MessageUtil.sendMessage(sender, Component.text("+", NamedTextColor.AQUA)
+                                        .append(Component.text(remaining, NamedTextColor.WHITE))
+                                        .append(Component.text(" more result" + (remaining > 1 ? "s" : "") + "...", NamedTextColor.AQUA))
                                 );
                             }
 
-                            MessageUtil.sendMessage(sender, ChatColor.AQUA + "Be more specific.");
+                            MessageUtil.sendMessage(sender, Component.text("Be more specific.", NamedTextColor.AQUA));
                         }
                         return;
                     }
@@ -176,7 +177,9 @@ public class CommandUnlink {
     }
 
     private static void notifyUnlinked(CommandSender sender) {
-        MessageUtil.sendMessage(sender, ChatColor.WHITE + "- " + ChatColor.AQUA + " Unlinked ✓");
+        MessageUtil.sendMessage(sender, Component.text("- ", NamedTextColor.WHITE)
+                .append(Component.text(" Unlinked ✓", NamedTextColor.AQUA))
+        );
     }
 
 }

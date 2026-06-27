@@ -27,8 +27,9 @@ import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.PlaceholderUtil;
 import lombok.Getter;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -100,13 +101,13 @@ public class CommandManager {
                 }
 
                 if (commandMethod.getParameters()[0].getType() == Player.class && !(sender instanceof Player)) {
-                    MessageUtil.sendMessage(sender, ChatColor.RED + LangUtil.InternalMessage.PLAYER_ONLY_COMMAND.toString());
+                    MessageUtil.sendMessage(sender, Component.text(LangUtil.InternalMessage.PLAYER_ONLY_COMMAND.toString(), NamedTextColor.RED));
                     return true;
                 }
 
                 commandMethod.invoke(null, sender, args);
             } catch (IllegalAccessException | InvocationTargetException e) {
-                MessageUtil.sendMessage(sender, ChatColor.RED + "" + LangUtil.InternalMessage.COMMAND_EXCEPTION);
+                MessageUtil.sendMessage(sender, Component.text(LangUtil.InternalMessage.COMMAND_EXCEPTION.toString(), NamedTextColor.RED));
                 DiscordSRV.error(e);
             }
         } else {

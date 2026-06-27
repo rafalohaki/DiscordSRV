@@ -23,7 +23,8 @@ package github.scarsz.discordsrv.commands;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.DebugUtil;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
@@ -57,7 +58,7 @@ public class CommandDebugger {
                     }
                 }
                 if (!anyValid) {
-                    sender.sendMessage(ChatColor.RED + "Invalid debug category: " + ChatColor.DARK_RED + argument);
+                    sender.sendMessage(Component.text("Invalid debug category: ", NamedTextColor.RED).append(Component.text(argument, NamedTextColor.DARK_RED)));
                     continue;
                 }
 
@@ -69,23 +70,25 @@ public class CommandDebugger {
             } else {
                 DiscordSRV.getPlugin().getDebuggerCategories().addAll(validArguments);
             }
-            sender.sendMessage(ChatColor.DARK_AQUA + "Debugger enabled, use "
-                    + ChatColor.GRAY + "/discordsrv debugger stop " + ChatColor.DARK_AQUA + "to stop debugging or "
-                    + ChatColor.GRAY + "/discordsrv debugger upload " + ChatColor.DARK_AQUA + "to stop debugging and generate a debug report");
+            sender.sendMessage(Component.text("Debugger enabled, use ", NamedTextColor.DARK_AQUA)
+                    .append(Component.text("/discordsrv debugger stop ", NamedTextColor.GRAY))
+                    .append(Component.text("to stop debugging or ", NamedTextColor.DARK_AQUA))
+                    .append(Component.text("/discordsrv debugger upload ", NamedTextColor.GRAY))
+                    .append(Component.text("to stop debugging and generate a debug report", NamedTextColor.DARK_AQUA)));
             return;
         } else if (subCommand.equalsIgnoreCase("stop") || subCommand.equalsIgnoreCase("off")
                 || (upload = subCommand.equalsIgnoreCase("upload"))) {
             if (upload) {
                 String result = DebugUtil.run(sender instanceof ConsoleCommandSender ? "CONSOLE" : sender.getName(), arguments.size() == 0 ? 256 : Integer.parseInt(arguments.get(0)));
-                sender.sendMessage(ChatColor.DARK_AQUA + "Your debug report has been generated and is available at " + ChatColor.AQUA + result);
+                sender.sendMessage(Component.text("Your debug report has been generated and is available at ", NamedTextColor.DARK_AQUA).append(Component.text(result, NamedTextColor.AQUA)));
             } else {
-                sender.sendMessage(ChatColor.DARK_AQUA + "Debugger disabled");
+                sender.sendMessage(Component.text("Debugger disabled", NamedTextColor.DARK_AQUA));
             }
             DiscordSRV.getPlugin().getDebuggerCategories().clear();
             return;
         }
 
-        sender.sendMessage(ChatColor.RED + "Invalid subcommand " + ChatColor.DARK_RED + subCommand);
+        sender.sendMessage(Component.text("Invalid subcommand ", NamedTextColor.RED).append(Component.text(subCommand, NamedTextColor.DARK_RED)));
     }
 
 }

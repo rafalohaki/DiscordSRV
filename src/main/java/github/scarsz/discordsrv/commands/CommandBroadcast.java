@@ -23,9 +23,10 @@ package github.scarsz.discordsrv.commands;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.*;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 
 import java.util.List;
@@ -63,7 +64,7 @@ public class CommandBroadcast {
         }
 
         if (finalArgs.length == 0) {
-            MessageUtil.sendMessage(sender, ChatColor.RED + LangUtil.InternalMessage.NO_MESSAGE_GIVEN_TO_BROADCAST.toString());
+            MessageUtil.sendMessage(sender, Component.text(LangUtil.InternalMessage.NO_MESSAGE_GIVEN_TO_BROADCAST.toString(), NamedTextColor.RED));
         } else {
             String rawMessage = String.join(" ", finalArgs).replace("\\n", "\n");
             rawMessage = PlaceholderUtil.replacePlaceholdersToDiscord(rawMessage);

@@ -27,7 +27,8 @@ import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.SchedulerUtil;
 import github.scarsz.discordsrv.util.UpdateUtil;
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 
 public class CommandReload {
@@ -57,7 +58,7 @@ public class CommandReload {
             DiscordSRV.updateChecked = true;
         }
 
-        MessageUtil.sendMessage(sender, ChatColor.AQUA + LangUtil.InternalMessage.RELOADED.toString());
+        MessageUtil.sendMessage(sender, Component.text(LangUtil.InternalMessage.RELOADED.toString(), NamedTextColor.AQUA));
 
         DiscordSRV.api.callEvent(new ConfigReloadedEvent(sender));
     }

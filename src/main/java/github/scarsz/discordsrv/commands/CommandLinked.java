@@ -24,9 +24,10 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.util.*;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -115,9 +116,9 @@ public class CommandLinked {
 
                         int remaining = matches.size() - 5;
                         if (remaining >= 1) {
-                            MessageUtil.sendMessage(sender, String.format("%s+%s%d%s more result%s...",
-                                    ChatColor.AQUA, ChatColor.WHITE, remaining, ChatColor.AQUA,
-                                    remaining > 1 ? "s" : "")
+                            MessageUtil.sendMessage(sender, Component.text("+", NamedTextColor.AQUA)
+                                    .append(Component.text(remaining, NamedTextColor.WHITE))
+                                    .append(Component.text(" more result" + (remaining > 1 ? "s" : "") + "...", NamedTextColor.AQUA))
                             );
                         }
                         return;
@@ -165,22 +166,24 @@ public class CommandLinked {
     }
 
     static void notifyInterpret(CommandSender sender, String type) {
-        MessageUtil.sendMessage(sender, String.format("%sInterpreted target as %s%s",
-                ChatColor.AQUA, ChatColor.WHITE, type)
+        MessageUtil.sendMessage(sender, Component.text("Interpreted target as ", NamedTextColor.AQUA)
+                .append(Component.text(type, NamedTextColor.WHITE))
         );
     }
 
     static void notifyPlayer(CommandSender sender, OfflinePlayer player) {
-        MessageUtil.sendMessage(sender, String.format("%s-%s Player: %s%s",
-                ChatColor.WHITE, ChatColor.AQUA, ChatColor.WHITE, PrettyUtil.beautifyNickname(player))
+        MessageUtil.sendMessage(sender, Component.text("-", NamedTextColor.WHITE)
+                .append(Component.text(" Player: ", NamedTextColor.AQUA))
+                .append(Component.text(PrettyUtil.beautifyNickname(player), NamedTextColor.WHITE))
         );
     }
 
     static void notifyDiscord(CommandSender sender, String discordId) {
         User user = DiscordUtil.getUserById(discordId);
         String discordInfo = (user != null ? " (" + user.getName() + "#" + user.getDiscriminator() + ")" : "") + " " + discordId;
-        MessageUtil.sendMessage(sender, String.format("%s-%s Discord: %s%s%s",
-                ChatColor.WHITE, ChatColor.AQUA, ChatColor.WHITE, PrettyUtil.beautify(user), discordInfo)
+        MessageUtil.sendMessage(sender, Component.text("-", NamedTextColor.WHITE)
+                .append(Component.text(" Discord: ", NamedTextColor.AQUA))
+                .append(Component.text(PrettyUtil.beautify(user) + discordInfo, NamedTextColor.WHITE))
         );
     }
 

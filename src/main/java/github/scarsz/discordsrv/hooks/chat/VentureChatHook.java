@@ -35,9 +35,10 @@ import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -231,7 +232,8 @@ public class VentureChatHook implements ChatHook {
 
         String channelColor = null;
         try {
-            channelColor = ChatColor.valueOf(chatChannel.getColor().toUpperCase()).toString();
+            channelColor = LegacyComponentSerializer.legacySection().serialize(
+                    Component.text("", NamedTextColor.NAMES.valueOr(chatChannel.getColor().toUpperCase(), NamedTextColor.WHITE)));
         } catch (Exception ignored) {
             // if it has a section sign it's probably a already formatted color
             if (chatChannel.getColor().contains(MessageUtil.LEGACY_SECTION.toString())) {
