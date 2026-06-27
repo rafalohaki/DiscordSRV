@@ -112,7 +112,9 @@ tasks {
 
         relocate("net.dv8tion.jda", "github.scarsz.discordsrv.dependencies.jda")
         relocate("com.vdurmont.emoji", "github.scarsz.discordsrv.dependencies.emoji")
-        relocate("net.kyori", "github.scarsz.discordsrv.dependencies.kyori")
+        // net.kyori (Adventure) is NOT relocated — Folia API provides Adventure natively
+        // at runtime, and CommandSender/Player implement net.kyori.adventure.audience.Audience.
+        // Relocating would cause instanceof Audience to fail at runtime.
         relocate("dev.vankka.mcdiscordreserializer", "github.scarsz.discordsrv.dependencies.mcdiscordreserializer")
         relocate("dev.vankka.simpleast", "github.scarsz.discordsrv.dependencies.simpleast")
         relocate("org.bstats", "github.scarsz.discordsrv.dependencies.bstats")
@@ -206,15 +208,22 @@ dependencies {
     // DiscordSRV does NOT bundle log4j so it is NOT exposed to CVE-2021-44228.
     compileOnly("org.apache.logging.log4j:log4j-core:2.20.0")
 
-    // adventure, adventure-platform, MCDiscordReserializer
+    // Adventure — provided by Folia API at runtime (compileOnly).
+    // Folia API depends on adventure-api, adventure-text-minimessage,
+    // adventure-text-serializer-gson, -legacy, -plain. No need to shade.
+    // mcdiscordreserializer still needs to be shaded (it depends on Adventure
+    // but is not provided by the server).
     val adventureVersion = "4.26.1"
-    api("net.kyori:adventure-api:${adventureVersion}")
-    api("net.kyori:adventure-text-minimessage:${adventureVersion}")
-    api("net.kyori:adventure-text-serializer-legacy:${adventureVersion}")
-    api("net.kyori:adventure-text-serializer-plain:${adventureVersion}")
-    api("net.kyori:adventure-text-serializer-gson:${adventureVersion}")
-    implementation("net.kyori:adventure-platform-bukkit:4.4.1")
-    api("dev.vankka:mcdiscordreserializer:${project.properties["mcDiscordReserializerVersion"]}")
+    compileOnly("net.kyori:adventure-api:${adventureVersion}")
+    compileOnly("net.kyori:adventure-text-minimessage:${adventureVersion}")
+    compileOnly("net.kyori:adventure-text-serializer-legacy:${adventureVersion}")
+    compileOnly("net.kyori:adventure-text-serializer-plain:${adventureVersion}")
+    compileOnly("net.kyori:adventure-text-serializer-gson:${adventureVersion}")
+    // mcdiscordreserializer — shaded, but its net.kyori transitive deps are
+    // excluded (Folia API provides Adventure at runtime).
+    api("dev.vankka:mcdiscordreserializer:${project.properties["mcDiscordReserializerVersion"]}") {
+        exclude(group = "net.kyori")
+    }
 
     // Annotations
     compileOnlyApi("org.jetbrains:annotations:23.0.0")
