@@ -33,6 +33,7 @@ import github.scarsz.configuralize.Language;
 import github.scarsz.configuralize.ParseException;
 import github.scarsz.discordsrv.api.ApiManager;
 import github.scarsz.discordsrv.api.events.*;
+import github.scarsz.discordsrv.commands.DiscordCommandRegistration;
 import github.scarsz.discordsrv.hooks.PluginHook;
 import github.scarsz.discordsrv.hooks.VaultHook;
 import github.scarsz.discordsrv.hooks.chat.ChatHook;
@@ -82,6 +83,9 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
 import okhttp3.*;
@@ -383,6 +387,15 @@ public class DiscordSRV extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        // Register /discord command tree via Brigadier (Paper LifecycleEvents.COMMANDS).
+        // Replaces the legacy plugin.yml commands: section + onCommand override.
+        try {
+            getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+                    DiscordCommandRegistration.register(event.registrar()));
+        } catch (Throwable t) {
+            error("Failed to register Brigadier commands: " + t.getMessage(), t);
+        }
+
         // Initialize extracted collaborators before anything else — they are used
         // throughout init() and the chat/listener lifecycle.
         this.channelRouter = new ChannelRouter(this, channels);
@@ -1444,60 +1457,6 @@ public class DiscordSRV extends JavaPlugin {
             error(e);
         }
         executor.shutdownNow();
-    }
-
-    @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, String[] args) {
-        Supplier<Boolean> handle = () -> commandManager.handle(sender, args[0], Arrays.stream(args).skip(1).toArray(String[]::new));
-        if (!isEnabled()) {
-            if (args.length > 0 && args[0].equalsIgnoreCase("debug")) return handle.get(); // allow using debug
-
-            if (invalidBotToken) {
-                sender.sendMessage(ChatColor.RED + "DiscordSRV is disabled: your bot token is invalid.");
-                sender.sendMessage(ChatColor.RED + "Please enter a valid token into your config.yml " +
-                        "(" + ChatColor.GRAY + "/plugins/DiscordSRV/config.yml" + ChatColor.RED + ")" +
-                        " and restart your server to get DiscordSRV to work.");
-            } else if (DiscordDisconnectListener.mostRecentCloseCode == CloseCode.DISALLOWED_INTENTS) {
-                sender.sendMessage(ChatColor.RED + "DiscordSRV is disabled: your DiscordSRV bot is lacking required intents.");
-                sender.sendMessage(ChatColor.RED + "Please check your server log " +
-                        "(" + ChatColor.GRAY + "/logs/latest.log" + ChatColor.RED + ")" +
-                        " for a extended error message during DiscordSRV's startup to get DiscordSRV to work.");
-            } else {
-                sender.sendMessage(ChatColor.RED + "DiscordSRV is disabled, check your server log " +
-                        "(" + ChatColor.GRAY + "/logs/latest.log" + ChatColor.RED + ")" +
-                        " for errors during DiscordSRV's startup to find out why");
-            }
-            return true;
-        }
-
-        if (args.length == 0) {
-            return commandManager.handle(sender, null, new String[] {});
-        } else {
-            return handle.get();
-        }
-    }
-
-    @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command bukkitCommand, @NotNull String alias, String[] args) {
-        if (!isEnabled()) return Collections.emptyList();
-
-        String command = args[0];
-        String[] commandArgs = Arrays.stream(args).skip(1).toArray(String[]::new);
-
-        if (command.equals(""))
-            return new ArrayList<String>() {{
-                for (Map.Entry<String, Method> command : getCommandManager().getCommands().entrySet())
-                    if (GamePermissionUtil.hasPermission(sender, command.getValue().getAnnotation(github.scarsz.discordsrv.commands.Command.class).permission()))
-                        add(command.getKey());
-            }};
-        if (commandArgs.length == 0)
-            return new ArrayList<String>() {{
-                for (Map.Entry<String, Method> commandPair : getCommandManager().getCommands().entrySet())
-                    if (commandPair.getKey().toLowerCase().startsWith(command.toLowerCase()))
-                        if (GamePermissionUtil.hasPermission(sender, commandPair.getValue().getAnnotation(github.scarsz.discordsrv.commands.Command.class).permission()))
-                            add(commandPair.getKey());
-            }};
-        return null;
     }
 
     @SuppressWarnings("deprecation")
