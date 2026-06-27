@@ -22,6 +22,7 @@ package github.scarsz.discordsrv.hooks.chat;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.PluginUtil;
 import github.scarsz.discordsrv.util.PlayerUtil;
 import org.bukkit.Bukkit;
@@ -32,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -106,6 +108,46 @@ public class WpmeCoreChatHook implements ChatHook {
     private @NotNull ChannelInfo globalChannelInfo() {
         List<Player> recipients = new ArrayList<>(PlayerUtil.getOnlinePlayers(false));
         return new ChannelInfo("Global", null, "", recipients);
+    }
+
+    /**
+     * Override deliverToRecipients to use {@link MessageUtil#sendMessage}
+     * instead of the default {@code recipient.sendMessage(Component)}.
+     *
+     * <p><b>Why:</b> DiscordSRV's Shadow plugin relocates {@code net.kyori} to
+     * {@code github.scarsz.discordsrv.dependencies.kyori} (build.gradle.kts
+     * line 115). This relocates ALL Adventure type references in DiscordSRV's
+     * bytecode, including method signatures of external API classes. So
+     * {@code Player.sendMessage(Component)} in the compiled bytecode becomes
+     * {@code Player.sendMessage(relocatedComponent)}, but the actual server
+     * method expects {@code net.kyori.adventure.text.Component} — causing
+     * {@code NoSuchMethodError} at runtime.
+     *
+     * <p>{@link MessageUtil#sendMessage} goes through the {@code BukkitAudiences}
+     * adapter (from adventure-platform-bukkit), which handles the relocated →
+     * native Adventure conversion internally. It also has a legacy-string
+     * fallback if the Audience path fails.
+     *
+     * <p>The default implementation in {@link ChatHook} catches the error
+     * silently (try/catch Throwable → debug log), so messages vanish without
+     * any visible error in the console.
+     */
+    @Override
+    public void deliverToRecipients(@NotNull Collection<? extends Player> recipients,
+                                    @NotNull String formattedMessage) {
+        Plugin plugin = DiscordSRV.getPlugin();
+        DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
+                "WpmeCoreChatHook.deliverToRecipients: " + recipients.size() + " recipients");
+        for (Player recipient : recipients) {
+            recipient.getScheduler().run(plugin, task -> {
+                try {
+                    MessageUtil.sendMessage(recipient, formattedMessage);
+                } catch (Throwable t) {
+                    DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
+                            "Failed to send Discord message to " + recipient.getName() + ": " + t.getMessage());
+                }
+            }, null);
+        }
     }
 
     @Override
