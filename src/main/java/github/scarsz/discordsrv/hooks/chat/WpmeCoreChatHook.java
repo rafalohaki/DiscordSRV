@@ -32,6 +32,7 @@ import org.bukkit.plugin.RegisteredServiceProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -67,6 +68,15 @@ public class WpmeCoreChatHook implements ChatHook {
     /** WpmeCore ChannelService class name (looked up via ServicesManager). */
     private static final String CHANNEL_SERVICE_CLASS = "org.rafalohaki.wpmecore.api.channel.ChannelService";
 
+    // --- Cached reflection (resolved once on first resolveChannel call) ---
+    private volatile @Nullable Class<?> channelServiceClass;
+    private volatile @Nullable Method channelByIdMethod;
+    private volatile @Nullable Method membersOfMethod;
+    private volatile @Nullable Method isPresentMethod;
+    private volatile @Nullable Method getMethod;
+    private volatile @Nullable Method channelIdMethod;
+    private volatile boolean reflectionInitialized = false;
+
     @Override
     public @Nullable ChannelInfo resolveChannel(String channelName) {
         // null or "global" → broadcast to all online players
@@ -78,13 +88,16 @@ public class WpmeCoreChatHook implements ChatHook {
         Object channelService = lookupChannelService();
         if (channelService != null) {
             try {
-                Object channelOpt = channelService.getClass().getMethod("channelById", String.class)
-                        .invoke(channelService, channelName);
-                if (channelOpt != null && (boolean) channelOpt.getClass().getMethod("isPresent").invoke(channelOpt)) {
-                    Object channel = channelOpt.getClass().getMethod("get").invoke(channelOpt);
+                ensureReflectionInitialized(channelService);
+                if (channelByIdMethod == null) {
+                    // Reflection init failed — fall back to global
+                    return globalChannelInfo();
+                }
+                Object channelOpt = channelByIdMethod.invoke(channelService, channelName);
+                if (channelOpt != null && (boolean) isPresentMethod.invoke(channelOpt)) {
+                    Object channel = getMethod.invoke(channelOpt);
                     @SuppressWarnings("unchecked")
-                    List<UUID> memberUuids = (List<UUID>) channelService.getClass()
-                            .getMethod("membersOf", String.class).invoke(channelService, channelName);
+                    List<UUID> memberUuids = (List<UUID>) membersOfMethod.invoke(channelService, channelName);
                     List<Player> recipients = new ArrayList<>();
                     for (UUID uuid : memberUuids) {
                         Player p = Bukkit.getPlayer(uuid);
@@ -92,7 +105,7 @@ public class WpmeCoreChatHook implements ChatHook {
                             recipients.add(p);
                         }
                     }
-                    String channelId = (String) channel.getClass().getMethod("id").invoke(channel);
+                    String channelId = (String) channelIdMethod.invoke(channel);
                     return new ChannelInfo(channelId != null ? channelId : channelName, null, "", recipients);
                 }
             } catch (Throwable t) {
@@ -103,6 +116,35 @@ public class WpmeCoreChatHook implements ChatHook {
 
         // Unknown channel — fall back to all online players rather than dropping
         return globalChannelInfo();
+    }
+
+    /**
+     * Initialize cached Method objects from the ChannelService instance.
+     * Called once on first resolveChannel; subsequent calls are no-ops.
+     * If the ChannelService class cannot be found or methods are missing,
+     * the fields stay null and resolveChannel falls back to global.
+     */
+    private void ensureReflectionInitialized(@NotNull Object channelService) {
+        if (reflectionInitialized) return;
+        synchronized (this) {
+            if (reflectionInitialized) return;
+            try {
+                Class<?> svcClass = channelService.getClass();
+                channelByIdMethod = svcClass.getMethod("channelById", String.class);
+                membersOfMethod = svcClass.getMethod("membersOf", String.class);
+                channelIdMethod = Class.forName(
+                        "org.rafalohaki.wpmecore.api.channel.Channel").getMethod("id");
+                // Optional's methods are on the concrete Optional type
+                Class<?> optionalClass = channelByIdMethod.getReturnType();
+                isPresentMethod = optionalClass.getMethod("isPresent");
+                getMethod = optionalClass.getMethod("get");
+                channelServiceClass = svcClass;
+            } catch (Throwable t) {
+                DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
+                        "WpmeCoreChatHook: reflection init failed: " + t.getMessage());
+            }
+            reflectionInitialized = true;
+        }
     }
 
     private @NotNull ChannelInfo globalChannelInfo() {
