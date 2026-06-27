@@ -1598,7 +1598,7 @@ public class DiscordSRV extends JavaPlugin {
                 + ", chatHook=" + (chatHook != null ? chatHook.getClass().getSimpleName() : "null")
                 + ", onlinePlayers=" + PlayerUtil.getOnlinePlayers().size());
 
-        if (chatHook == null || channel == null) {
+        if (chatHook == null) {
             if (channel != null && !channel.equalsIgnoreCase("global")) {
                 DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT, "Not broadcasting Discord message to Minecraft: no chat hook and channel \"" + channel + "\" is not \"global\"");
                 return; // don't send messages for non-global channels with no plugin hooks
