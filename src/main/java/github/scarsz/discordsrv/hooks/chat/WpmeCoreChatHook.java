@@ -111,6 +111,31 @@ public class WpmeCoreChatHook implements ChatHook {
     }
 
     /**
+     * Override broadcast pipeline to skip the {@code [channel]} prefix for
+     * the global channel. The default {@link ChatHook#broadcastMessageToChannel}
+     * formats every message as {@code %channelcolor%[%channelnickname%] %message%}
+     * — for the global channel (the default DiscordSRV channel), the
+     * {@code [Global]} prefix is redundant noise. For non-global channels
+     * (e.g. staff, local), the prefix is useful and the default pipeline runs.
+     */
+    @Override
+    public void broadcastMessageToChannel(String channel, net.kyori.adventure.text.Component message) {
+        if (channel == null || channel.equalsIgnoreCase("global")) {
+            // Global: deliver the message as-is, no [Global] prefix.
+            String legacy = MessageUtil.toLegacy(message);
+            String translated = MessageUtil.translateLegacy(legacy);
+            DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
+                    "WpmeCoreChatHook.broadcastMessageToChannel: global, " + translated);
+            List<Player> recipients = new ArrayList<>(PlayerUtil.getOnlinePlayers(false));
+            deliverToRecipients(recipients, translated);
+            PlayerUtil.notifyPlayersOfMentions(recipients::contains, legacy);
+            return;
+        }
+        // Non-global: use default pipeline (with [channel] prefix).
+        ChatHook.super.broadcastMessageToChannel(channel, message);
+    }
+
+    /**
      * Override deliverToRecipients to bypass Adventure entirely.
      *
      * <p><b>Why:</b> DiscordSRV's Shadow plugin relocates {@code net.kyori} to
