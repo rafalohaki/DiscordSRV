@@ -111,8 +111,7 @@ public class WpmeCoreChatHook implements ChatHook {
     }
 
     /**
-     * Override deliverToRecipients to use {@link MessageUtil#sendMessage}
-     * instead of the default {@code recipient.sendMessage(Component)}.
+     * Override deliverToRecipients to bypass Adventure entirely.
      *
      * <p><b>Why:</b> DiscordSRV's Shadow plugin relocates {@code net.kyori} to
      * {@code github.scarsz.discordsrv.dependencies.kyori} (build.gradle.kts
@@ -124,24 +123,30 @@ public class WpmeCoreChatHook implements ChatHook {
      * {@code NoSuchMethodError} at runtime.
      *
      * <p>{@link MessageUtil#sendMessage} goes through the {@code BukkitAudiences}
-     * adapter (from adventure-platform-bukkit), which handles the relocated →
-     * native Adventure conversion internally. It also has a legacy-string
-     * fallback if the Audience path fails.
+     * adapter, which can fail on Folia/Canvas. Instead, we call
+     * {@code recipient.sendMessage(String)} directly — the {@code String}
+     * parameter is a Java type, NOT relocated by Shadow, so the method
+     * resolves correctly. The {@code formattedMessage} from
+     * {@code broadcastMessageToChannel} is already legacy-translated
+     * (section-sign color codes) by {@link MessageUtil#translateLegacy},
+     * so colors render correctly via {@code CommandSender.sendMessage(String)}.
      *
-     * <p>The default implementation in {@link ChatHook} catches the error
-     * silently (try/catch Throwable → debug log), so messages vanish without
-     * any visible error in the console.
+     * <p>The default implementation in {@link ChatHook} catches the
+     * {@code NoSuchMethodError} silently (try/catch Throwable → debug log),
+     * so messages vanish without any visible error in the console.
      */
     @Override
     public void deliverToRecipients(@NotNull Collection<? extends Player> recipients,
                                     @NotNull String formattedMessage) {
         Plugin plugin = DiscordSRV.getPlugin();
         DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
-                "WpmeCoreChatHook.deliverToRecipients: " + recipients.size() + " recipients");
+                "WpmeCoreChatHook.deliverToRecipients: " + recipients.size() + " recipients, message=" + formattedMessage);
         for (Player recipient : recipients) {
             recipient.getScheduler().run(plugin, task -> {
                 try {
-                    MessageUtil.sendMessage(recipient, formattedMessage);
+                    // Bypass Adventure entirely — String parameter is NOT relocated.
+                    // formattedMessage already has §-codes from MessageUtil.translateLegacy.
+                    recipient.sendMessage(formattedMessage);
                 } catch (Throwable t) {
                     DiscordSRV.debug(Debug.DISCORD_TO_MINECRAFT,
                             "Failed to send Discord message to " + recipient.getName() + ": " + t.getMessage());
