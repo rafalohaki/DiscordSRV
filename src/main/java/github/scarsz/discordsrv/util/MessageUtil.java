@@ -330,47 +330,72 @@ public class MessageUtil {
      * @param adventureMessage the message to send
      */
     public static void sendMessage(Iterable<? extends CommandSender> commandSenders, Component adventureMessage) {
-        // On Paper/Folia 26.x, CommandSender implements Audience natively — send directly
-        // without the BukkitAudiences adapter, which can fail on Folia's threaded model.
-        Set<Audience> audiences = new HashSet<>();
-        Set<Audience> degradedAudiences = new HashSet<>();
-        commandSenders.forEach(sender -> {
-            Audience audience = sender instanceof Audience a ? a : getAudiences().sender(sender);
-            if (sender instanceof Player p && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible(p)) {
-                degradedAudiences.add(audience);
-            } else {
-                audiences.add(audience);
-            }
-        });
+        // DiscordSRV relocates net.kyori → github.scarsz.discordsrv.dependencies.kyori at build time.
+        // Folia's CommandSender implements net.kyori.adventure.audience.Audience (unrelocated),
+        // so `sender instanceof Audience` is FALSE at runtime — the types are from different
+        // classloaders. BukkitAudiences bridges this, but on Folia 26.x it can silently fail
+        // when forwarding the relocated Component to the unrelocated CommandSender.
+        //
+        // Fix: detect the relocation mismatch and fall back to sender.sendMessage(String)
+        // with legacy serialization, which works on all Paper/Folia versions.
 
-        try {
-            if (!audiences.isEmpty()) {
-                Audience.audience(audiences).sendMessage(adventureMessage);
+        // Fast path: check if any sender directly implements our relocated Audience.
+        boolean anyDirectAudience = false;
+        for (CommandSender sender : commandSenders) {
+            if (sender instanceof Audience) {
+                anyDirectAudience = true;
+                break;
             }
+        }
 
-            if (!degradedAudiences.isEmpty()) {
-                // Put it through legacy serializer for degraded audiences
-                Component degraded = LEGACY_SERIALIZER.deserialize(LEGACY_SERIALIZER.serialize(adventureMessage));
-                Audience.audience(degradedAudiences).sendMessage(degraded);
-            }
-        } catch (NoClassDefFoundError e) {
-            // might happen with 1.7
-            if (e.getMessage() != null && e.getMessage().equals("org/bukkit/command/ProxiedCommandSender")) {
-                String legacy = toLegacy(adventureMessage);
-                commandSenders.forEach(sender -> sender.sendMessage(legacy));
-                DiscordSRV.debug(e);
-                return;
-            }
-            DiscordSRV.error(e);
-        } catch (Throwable t) {
-            // Last-resort fallback: send as legacy string
-            String legacy = toLegacy(adventureMessage);
+        if (anyDirectAudience) {
+            // Relocation matches — use the native Audience API directly.
+            Set<Audience> audiences = new HashSet<>();
+            Set<Audience> degradedAudiences = new HashSet<>();
             commandSenders.forEach(sender -> {
-                try {
-                    sender.sendMessage(legacy);
-                } catch (Throwable ignored) {}
+                Audience audience = sender instanceof Audience a ? a : getAudiences().sender(sender);
+                if (sender instanceof Player p && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible(p)) {
+                    degradedAudiences.add(audience);
+                } else {
+                    audiences.add(audience);
+                }
             });
-            DiscordSRV.error(t);
+
+            try {
+                if (!audiences.isEmpty()) {
+                    Audience.audience(audiences).sendMessage(adventureMessage);
+                }
+
+                if (!degradedAudiences.isEmpty()) {
+                    // Put it through legacy serializer for degraded audiences
+                    Component degraded = LEGACY_SERIALIZER.deserialize(LEGACY_SERIALIZER.serialize(adventureMessage));
+                    Audience.audience(degradedAudiences).sendMessage(degraded);
+                }
+                return;
+            } catch (NoClassDefFoundError e) {
+                if (e.getMessage() != null && e.getMessage().equals("org/bukkit/command/ProxiedCommandSender")) {
+                    String legacy = toLegacy(adventureMessage);
+                    commandSenders.forEach(sender -> sender.sendMessage(legacy));
+                    DiscordSRV.debug(e);
+                    return;
+                }
+                DiscordSRV.error(e);
+            } catch (Throwable t) {
+                DiscordSRV.error(t);
+                // fall through to legacy fallback below
+            }
+        }
+
+        // Fallback path (relocation mismatch or exception above): serialize to legacy
+        // string and use sender.sendMessage(String) directly. On Paper/Folia 26.x this
+        // is deprecated but functional — it converts legacy §-codes to Component internally.
+        String legacy = toLegacy(adventureMessage);
+        for (CommandSender sender : commandSenders) {
+            try {
+                sender.sendMessage(legacy);
+            } catch (Throwable t) {
+                DiscordSRV.debug("Failed to send legacy message to " + sender.getName() + ": " + t.getMessage());
+            }
         }
     }
 
