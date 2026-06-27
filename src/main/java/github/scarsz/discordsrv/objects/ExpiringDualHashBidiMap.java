@@ -23,9 +23,13 @@ package github.scarsz.discordsrv.objects;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 

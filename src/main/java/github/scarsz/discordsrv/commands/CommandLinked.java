@@ -21,7 +21,7 @@
 package github.scarsz.discordsrv.commands;
 
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
 import net.kyori.adventure.text.Component;
@@ -36,6 +36,11 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PrettyUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
 
 public class CommandLinked {
 

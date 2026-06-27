@@ -23,12 +23,14 @@ package github.scarsz.discordsrv.api.events;
 import github.scarsz.discordsrv.api.Cancellable;
 import github.scarsz.discordsrv.api.LegacyChannelProxy;
 import github.scarsz.discordsrv.util.MessageUtil;
-import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.kyori.adventure.text.Component;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 
 /**
  * <p>Called directly after a message from Discord was processed but before being broadcasted to the Minecraft server</p>

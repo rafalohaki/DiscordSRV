@@ -20,15 +20,26 @@
 
 package github.scarsz.discordsrv.objects;
 
-import org.bukkit.event.*;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.*;
+
 import java.util.function.BiConsumer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
+import org.bukkit.event.EventException;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 
 public class CancellationDetector<E extends Cancellable> {
 

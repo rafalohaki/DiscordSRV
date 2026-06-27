@@ -28,7 +28,7 @@ import github.scarsz.discordsrv.api.Subscribe;
 import github.scarsz.discordsrv.objects.ExpiringDualHashBidiMap;
 import github.scarsz.discordsrv.objects.Lag;
 import github.scarsz.discordsrv.objects.MessageFormat;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -39,7 +39,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.event.*;
+
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.event.server.ServerCommandEvent;
@@ -52,13 +52,42 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.*;
+
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.NamedValueFormatter;
+import github.scarsz.discordsrv.util.PlaceholderUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.SpELExpressionBuilder;
+import github.scarsz.discordsrv.util.TimeUtil;
+import github.scarsz.discordsrv.util.WebhookUtil;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
 
 public class AlertListener implements Listener, EventListener {
 

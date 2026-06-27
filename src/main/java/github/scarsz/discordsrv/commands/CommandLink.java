@@ -22,7 +22,7 @@ package github.scarsz.discordsrv.commands;
 
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.User;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -39,6 +39,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.GamePermissionUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PlaceholderUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
 
 public class CommandLink {
 

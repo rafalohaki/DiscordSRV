@@ -28,13 +28,12 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.*;
+
 import net.dv8tion.jda.api.entities.emoji.RichCustomEmoji;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
+
 import net.dv8tion.jda.api.entities.channel.ChannelType;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.events.guild.member.update.GuildMemberUpdateNicknameEvent;
 import net.dv8tion.jda.api.events.role.update.RoleUpdateNameEvent;
 import net.dv8tion.jda.api.events.user.update.UserUpdateNameEvent;
@@ -47,13 +46,28 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.io.File;
-import java.util.*;
+
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Icon;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 
 public class DiscordUtil {
 

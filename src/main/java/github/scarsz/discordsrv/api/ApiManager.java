@@ -23,7 +23,7 @@ package github.scarsz.discordsrv.api;
 import com.google.common.collect.Sets;
 import com.hrakaroo.glob.GlobPattern;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.api.commands.*;
+
 import github.scarsz.discordsrv.api.events.Event;
 import github.scarsz.discordsrv.api.events.GuildSlashCommandUpdateEvent;
 import github.scarsz.discordsrv.util.LangUtil;
@@ -45,11 +45,24 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
+import github.scarsz.discordsrv.api.commands.CommandRegistrationError;
+import github.scarsz.discordsrv.api.commands.PluginSlashCommand;
+import github.scarsz.discordsrv.api.commands.SlashCommand;
+import github.scarsz.discordsrv.api.commands.SlashCommandPriority;
+import github.scarsz.discordsrv.api.commands.SlashCommandProvider;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * <p>The manager of all of DiscordSRV's API related functionality.</p>

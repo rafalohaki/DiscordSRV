@@ -24,7 +24,7 @@ import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.ExpiringDualHashBidiMap;
 import github.scarsz.discordsrv.objects.managers.link.file.AppendOnlyFileAccountLinkManager;
-import github.scarsz.discordsrv.util.*;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bukkit.Bukkit;
@@ -36,12 +36,30 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.io.File;
-import java.sql.*;
-import java.util.*;
+
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PrettyUtil;
+import github.scarsz.discordsrv.util.SQLUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.Driver;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.UUID;
 
 @SuppressWarnings("SqlResolve")
 public class JdbcAccountLinkManager extends AbstractAccountLinkManager {

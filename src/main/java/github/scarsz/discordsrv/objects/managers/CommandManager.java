@@ -21,7 +21,7 @@
 package github.scarsz.discordsrv.objects.managers;
 
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.commands.*;
+
 import github.scarsz.discordsrv.util.GamePermissionUtil;
 import github.scarsz.discordsrv.util.LangUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
@@ -40,6 +40,16 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import github.scarsz.discordsrv.commands.Command;
+import github.scarsz.discordsrv.commands.CommandBroadcast;
+import github.scarsz.discordsrv.commands.CommandDebugger;
+import github.scarsz.discordsrv.commands.CommandHelp;
+import github.scarsz.discordsrv.commands.CommandLanguage;
+import github.scarsz.discordsrv.commands.CommandLink;
+import github.scarsz.discordsrv.commands.CommandLinked;
+import github.scarsz.discordsrv.commands.CommandReload;
+import github.scarsz.discordsrv.commands.CommandResync;
+import github.scarsz.discordsrv.commands.CommandUnlink;
 
 public class CommandManager {
 

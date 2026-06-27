@@ -34,11 +34,9 @@ import github.scarsz.discordsrv.hooks.VaultHook;
 import github.scarsz.discordsrv.hooks.chat.TownyChatHook;
 import github.scarsz.discordsrv.listeners.DiscordDisconnectListener;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.*;
+
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.requests.CloseCode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -50,24 +48,59 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.*;
+
 import org.bukkit.plugin.RegisteredListener;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.*;
+
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
-import java.util.*;
-import java.util.concurrent.*;
+
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Stack;
+import java.util.StringJoiner;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.Role;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerAdvancementDoneEvent;
+import org.bukkit.event.player.PlayerChatEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 public class DebugUtil {
 

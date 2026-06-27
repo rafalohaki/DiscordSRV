@@ -24,7 +24,7 @@ import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.managers.GroupSynchronizationManager;
-import github.scarsz.discordsrv.util.*;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -34,6 +34,12 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.GamePermissionUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
 
 public class PlayerJoinLeaveListener implements Listener {
 

@@ -25,14 +25,12 @@ import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.WebhookMessage;
 import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.*;
+
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
-import okhttp3.*;
+
 import okio.Okio;
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.OfflinePlayer;
@@ -42,12 +40,32 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.Webhook;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttp;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class WebhookUtil {
 

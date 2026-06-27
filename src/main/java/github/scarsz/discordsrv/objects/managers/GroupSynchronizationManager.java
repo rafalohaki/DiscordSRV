@@ -23,11 +23,7 @@ package github.scarsz.discordsrv.objects.managers;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.ExpiringDualHashBidiMap;
-import github.scarsz.discordsrv.util.*;
-import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.events.guild.member.GuildMemberJoinEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent;
 import net.dv8tion.jda.api.events.guild.member.GuildMemberRoleAddEvent;
@@ -50,13 +46,35 @@ import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.GamePermissionUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.PluginUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Timer;
+import java.util.UUID;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.ISnowflake;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
 
 public class GroupSynchronizationManager extends ListenerAdapter implements Listener {
 

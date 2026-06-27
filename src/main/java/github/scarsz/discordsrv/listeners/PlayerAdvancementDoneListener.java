@@ -26,7 +26,7 @@ import github.scarsz.discordsrv.api.events.AchievementMessagePostProcessEvent;
 import github.scarsz.discordsrv.api.events.AchievementMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.MessageTranslator;
-import github.scarsz.discordsrv.util.*;
+
 import lombok.SneakyThrows;
 import java.lang.reflect.Field;
 import net.dv8tion.jda.api.entities.Message;
@@ -34,7 +34,7 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.*;
+
 import org.bukkit.advancement.Advancement;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -50,6 +50,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.Optional;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.NMSUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.WebhookUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.GameRule;
+import org.bukkit.GameRules;
+import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 
 public class PlayerAdvancementDoneListener implements Listener {
 

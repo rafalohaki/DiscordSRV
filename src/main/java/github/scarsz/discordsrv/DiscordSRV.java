@@ -32,14 +32,14 @@ import github.scarsz.configuralize.DynamicConfig;
 import github.scarsz.configuralize.Language;
 import github.scarsz.configuralize.ParseException;
 import github.scarsz.discordsrv.api.ApiManager;
-import github.scarsz.discordsrv.api.events.*;
+
 import github.scarsz.discordsrv.commands.DiscordCommandRegistration;
 import github.scarsz.discordsrv.hooks.PluginHook;
 import github.scarsz.discordsrv.hooks.VaultHook;
 import github.scarsz.discordsrv.hooks.chat.ChatHook;
 import github.scarsz.discordsrv.hooks.vanish.VanishHook;
 import github.scarsz.discordsrv.hooks.world.WorldHook;
-import github.scarsz.discordsrv.listeners.*;
+
 import github.scarsz.discordsrv.modules.alerts.AlertListener;
 import github.scarsz.discordsrv.modules.requirelink.RequireLinkModule;
 import github.scarsz.discordsrv.objects.CancellationDetector;
@@ -59,15 +59,11 @@ import github.scarsz.discordsrv.objects.managers.IncompatibleClientManager;
 import github.scarsz.discordsrv.objects.managers.link.JdbcAccountLinkManager;
 import github.scarsz.discordsrv.objects.managers.link.file.AppendOnlyFileAccountLinkManager;
 import github.scarsz.discordsrv.objects.proxy.AlwaysEnabledPluginDynamicProxy;
-import github.scarsz.discordsrv.objects.threads.*;
-import github.scarsz.discordsrv.util.*;
+
 import lombok.Getter;
-import net.dv8tion.jda.api.*;
-import net.dv8tion.jda.api.entities.*;
+
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.dv8tion.jda.api.events.session.ShutdownEvent;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.exceptions.HierarchyException;
@@ -89,7 +85,7 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
 import net.kyori.adventure.text.format.NamedTextColor;
-import okhttp3.*;
+
 import okhttp3.internal.tls.OkHostnameVerifier;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
@@ -127,15 +123,14 @@ import org.minidns.record.Record;
 
 import javax.net.ssl.SSLContext;
 import javax.security.auth.login.LoginException;
-import java.io.*;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.*;
+
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.*;
+
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -143,6 +138,96 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
+import github.scarsz.discordsrv.api.events.DiscordGuildMessagePostBroadcastEvent;
+import github.scarsz.discordsrv.api.events.DiscordGuildMessagePreBroadcastEvent;
+import github.scarsz.discordsrv.api.events.DiscordReadyEvent;
+import github.scarsz.discordsrv.api.events.Event;
+import github.scarsz.discordsrv.listeners.DiscordAccountLinkListener;
+import github.scarsz.discordsrv.listeners.DiscordBanListener;
+import github.scarsz.discordsrv.listeners.DiscordChatListener;
+import github.scarsz.discordsrv.listeners.DiscordConsoleListener;
+import github.scarsz.discordsrv.listeners.DiscordDisconnectListener;
+import github.scarsz.discordsrv.listeners.ModernPlayerChatListener;
+import github.scarsz.discordsrv.listeners.PlayerAchievementsListener;
+import github.scarsz.discordsrv.listeners.PlayerAdvancementDoneListener;
+import github.scarsz.discordsrv.listeners.PlayerBanListener;
+import github.scarsz.discordsrv.listeners.PlayerChatListener;
+import github.scarsz.discordsrv.listeners.PlayerDeathListener;
+import github.scarsz.discordsrv.listeners.PlayerJoinLeaveListener;
+import github.scarsz.discordsrv.objects.threads.ChannelTopicUpdater;
+import github.scarsz.discordsrv.objects.threads.ChannelUpdater;
+import github.scarsz.discordsrv.objects.threads.NicknameUpdater;
+import github.scarsz.discordsrv.objects.threads.PresenceUpdater;
+import github.scarsz.discordsrv.objects.threads.ServerWatchdog;
+import github.scarsz.discordsrv.util.ConfigUtil;
+import github.scarsz.discordsrv.util.DebugUtil;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageFormatResolver;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PlaceholderUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.PluginUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.TimeUtil;
+import github.scarsz.discordsrv.util.UpdateUtil;
+import java.io.Console;
+import java.io.File;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
+import java.net.URI;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
+import okhttp3.Callback;
+import okhttp3.ConnectionPool;
+import okhttp3.Credentials;
+import okhttp3.Dispatcher;
+import okhttp3.Dns;
+import okhttp3.OkHttp;
+import okhttp3.OkHttpClient;
 
 /**
  * DiscordSRV's main class, can be accessed via {@link #getPlugin()}.
@@ -1025,7 +1110,6 @@ public class DiscordSRV extends JavaPlugin {
                 "github.scarsz.discordsrv.hooks.vanish.EssentialsHook",
                 "github.scarsz.discordsrv.hooks.vanish.PhantomAdminHook",
                 "github.scarsz.discordsrv.hooks.vanish.SuperVanishHook",
-                "github.scarsz.discordsrv.hooks.vanish.VanishNoPacketHook",
                 // dynmap
                 "github.scarsz.discordsrv.hooks.DynmapHook",
                 // luckperms

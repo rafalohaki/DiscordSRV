@@ -23,11 +23,11 @@ package github.scarsz.discordsrv.listeners;
 import com.vdurmont.emoji.EmojiParser;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.api.events.*;
+
 import github.scarsz.discordsrv.hooks.DynmapHook;
 import github.scarsz.discordsrv.hooks.VaultHook;
 import github.scarsz.discordsrv.objects.proxy.CommandSenderDynamicProxy;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.entities.sticker.StickerItem;
@@ -52,11 +52,36 @@ import org.bukkit.entity.Player;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import github.scarsz.discordsrv.api.events.DiscordChatChannelListCommandMessageEvent;
+import github.scarsz.discordsrv.api.events.DiscordConsoleCommandPostProcessEvent;
+import github.scarsz.discordsrv.api.events.DiscordConsoleCommandPreProcessEvent;
+import github.scarsz.discordsrv.api.events.DiscordGuildMessagePostProcessEvent;
+import github.scarsz.discordsrv.api.events.DiscordGuildMessagePreProcessEvent;
+import github.scarsz.discordsrv.api.events.DiscordGuildMessageReceivedEvent;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageFormatResolver;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PaperForwardingCommandSender;
+import github.scarsz.discordsrv.util.PlaceholderUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.TimeUtil;
+import github.scarsz.discordsrv.util.WebhookUtil;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.UUID;
 
 public class DiscordChatListener extends ListenerAdapter {
 

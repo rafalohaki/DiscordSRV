@@ -29,10 +29,7 @@ import github.scarsz.discordsrv.util.SchedulerUtil;
 import me.clip.placeholderapi.PlaceholderAPIPlugin;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import net.dv8tion.jda.api.OnlineStatus;
-import net.dv8tion.jda.api.entities.*;
-import net.dv8tion.jda.api.entities.channel.concrete.*;
-import net.dv8tion.jda.api.entities.channel.middleman.*;
-import net.dv8tion.jda.api.entities.channel.unions.*;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import org.apache.commons.lang3.StringUtils;
@@ -50,6 +47,11 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
 
 public class PlaceholderAPIExpansion extends PlaceholderExpansion {
 

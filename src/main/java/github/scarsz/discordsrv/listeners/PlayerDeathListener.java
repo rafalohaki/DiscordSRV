@@ -26,7 +26,7 @@ import github.scarsz.discordsrv.api.events.DeathMessagePostProcessEvent;
 import github.scarsz.discordsrv.api.events.DeathMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.MessageTranslator;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -40,6 +40,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 
 import java.util.function.BiFunction;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.WebhookUtil;
 
 public class PlayerDeathListener implements Listener {
 

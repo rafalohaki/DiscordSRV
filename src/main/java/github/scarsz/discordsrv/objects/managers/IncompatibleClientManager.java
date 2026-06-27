@@ -80,11 +80,6 @@ public class IncompatibleClientManager implements PluginMessageListener, Listene
         } catch (IllegalAccessException | InvocationTargetException ignored) {
             return;
         }
-
-//        if (brand != null && brand.toLowerCase(Locale.ROOT).startsWith("lunarclient")) {
-//            addIncompatible(player, "LunarClient");
-//            DiscordSRV.debug("Detected client brand: " + brand + " for " + player.getName());
-//        }
     }
 
     @Override
@@ -93,11 +88,6 @@ public class IncompatibleClientManager implements PluginMessageListener, Listene
     }
 
     private void checkChannel(Player player, String channel, boolean register) {
-//        if (channel.toLowerCase(Locale.ROOT).startsWith("lunarclient")) {
-//            addIncompatible(player, "LunarClient");
-//            DiscordSRV.debug("Received " + (register ? "message channel register" : "plugin message")
-//                                     + " from channel " + channel + " for " + player.getName());
-//        }
     }
 
     @SuppressWarnings("SameParameterValue")

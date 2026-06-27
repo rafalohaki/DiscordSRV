@@ -26,7 +26,7 @@ import github.scarsz.discordsrv.api.events.AchievementMessagePostProcessEvent;
 import github.scarsz.discordsrv.api.events.AchievementMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.objects.MessageTranslator;
-import github.scarsz.discordsrv.util.*;
+
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -42,6 +42,11 @@ import org.bukkit.plugin.RegisteredListener;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.PlayerUtil;
+import github.scarsz.discordsrv.util.PrettyUtil;
+import github.scarsz.discordsrv.util.SchedulerUtil;
+import github.scarsz.discordsrv.util.WebhookUtil;
 
 public class PlayerAchievementsListener {
 
